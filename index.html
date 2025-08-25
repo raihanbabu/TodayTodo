@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Work Schedule App</title>
+    <style>
+        :root {
+            --bg-color: #f5f6f5;
+            --container-bg: #ffffff;
+            --text-color: #2d2d2d;
+            --li-bg: #e8ecef;
+            --section-border: #d1d5db;
+            --active-bg: #90ee90;
+            --completed-bg: #f1f3f5;
+            --drag-over-bg: #d1d5db;
+        }
+        .dark-mode {
+            --bg-color: #1f2937;
+            --container-bg: #374151;
+            --text-color: #e5e7eb;
+            --li-bg: #4b5563;
+            --section-border: #6b7280;
+            --active-bg: #68d391;
+            --completed-bg: #2d3748;
+            --drag-over-bg: #6b7280;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            background: var(--container-bg);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            max-width: 700px;
+            width: 100%;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2em;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin-bottom: 24px;
+        }
+        .section h2 {
+            border-bottom: 2px solid var(--section-border);
+            padding-bottom: 8px;
+            font-size: 1.5em;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+            min-height: 20px;
+        }
+        ul.drag-over {
+            background: var(--drag-over-bg);
+            border: 2px dashed var(--section-border);
+            border-radius: 8px;
+        }
+        li {
+            padding: 12px;
+            margin: 8px 0;
+            background: var(--li-bg);
+            border-radius: 8px;
+            transition: background 0.3s, transform 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            cursor: move;
+        }
+        li.dragging {
+            opacity: 0.5;
+            transform: scale(0.98);
+        }
+        li:hover {
+            transform: scale(1.02);
+        }
+        li.active {
+            background: var(--active-b
+System: g);
+            font-weight: 600;
+        }
+        li.completed {
+            text-decoration: line-through;
+            opacity: 0.7;
+            background: var(--completed-bg);
+        }
+        li:hover .edit-btn, li:hover .delete-btn, li:hover .complete-btn, li:hover .back-btn {
+            display: inline-block;
+        }
+        #current-task {
+            text-align: center;
+            font-size: 1.3em;
+            margin-bottom: 12px;
+            color: #2563eb;
+        }
+        #timer {
+            text-align: center;
+            font-size: 1.2em;
+            margin-bottom: 12px;
+        }
+        button, input[type="submit"] {
+            margin: 12px auto;
+            padding: 10px 24px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s, transform 0.2s;
+        }
+        button:hover, input[type="submit"]:hover {
+            background: #1e40af;
+            transform: scale(1.05);
+        }
+        form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 24px;
+        }
+        input, select {
+            padding: 10px;
+            border: 1px solid var(--section-border);
+            border-radius: 6px;
+            font-size: 1em;
+        }
+        .delete-btn, .edit-btn, .complete-btn, .back-btn {
+            padding: 6px 12px;
+            font-size: 0.9em;
+            margin-left: 8px;
+        }
+        .delete-btn {
+            background: #ef4444;
+        }
+        .delete-btn:hover {
+            background: #b91c1c;
+        }
+        .edit-btn {
+            background: #2ecc71;
+            display: none;
+        }
+        .edit-btn:hover {
+            background: #27ae60;
+        }
+        .complete-btn {
+            background: #f59e0b;
+            display: none;
+        }
+        .complete-btn:hover {
+            background: #d97706;
+        }
+        .back-btn {
+            background: #8b5cf6;
+            display: none;
+        }
+        .back-btn:hover {
+            background: #7c3aed;
+        }
+        .edit-form {
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+            padding: 12px;
+            background: var(--li-bg);
+            border-radius: 8px;
+            margin-top: 12px;
+        }
+        .notification-status-container {
+            display: flex;
+            justify-content: center;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 10px;
+        }
+        .notification-status {
+            text-align: center;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+        @media (max-width: 600px) {
+            .container {
+                padding: 16px;
+            }
+            h1 {
+                font-size: 1.6em;
+            }
+            li {
+                font-size: 0.9em;
+                padding: 10px;
+            }
+            #current-task, #timer {
+                font-size: 1.1em;
+            }
+            button, input, select {
+                padding: 8px;
+                font-size: 0.9em;
+            }
+            form, .edit-form {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Focus Work Schedule</h1>
+        <div id="current-task" aria-live="polite">Current Task: None</div>
+        <div id="timer" aria-live="polite">Time Left: --</div>
+        <button id="theme-toggle" aria-label="Toggle dark mode">Toggle Dark Mode</button>
+        <div class="section">
+            <h2>Add Task</h2>
+            <form id="add-task-form">
+                <input type="time" id="start-time" required aria-label="Start time">
+                <input type="time" id="end-time" required aria-label="End time">
+                <input type="text" id="task-name" placeholder="Task name" required aria-label="Task name">
+                <select id="section" aria-label="Schedule section">
+                    <option value="morning" title="Morning tasks">Morning</option>
+                    <option value="noon" title="Noon tasks">Noon</option>
+                    <option value="evening" title="Evening tasks">Evening</option>
+                    <option value="important_urgent" title="Crises">Important, urgent</option>
+                    <option value="important_not_urgent" title="Goals & Planning">Important but not urgent</option>
+                    <option value="not_important_urgent" title="Interruptions">Not Important, urgent</option>
+                    <option value="neither_urgent_nor_important" title="Distractions">Neither urgent nor important</option>
+                </select>
+                <input type="submit" value="Add Task">
+            </form>
+        </div>
+        <div class="section morning">
+            <h2>Morning</h2>
+            <ul id="morning-tasks" data-section="morning"></ul>
+        </div>
+        <div class="section noon">
+            <h2>Noon</h2>
+            <ul id="noon-tasks" data-section="noon"></ul>
+        </div>
+        <div class="section evening">
+            <h2>Evening</h2>
+            <ul id="evening-tasks" data-section="evening"></ul>
+        </div>
+        <div class="section important_urgent">
+            <h2>Crises</h2>
+            <ul id="important-urgent-tasks" data-section="important_urgent"></ul>
+        </div>
+        <div class="section important_not_urgent">
+            <h2>Goals & Planning</h2>
+            <ul id="important-not-urgent-tasks" data-section="important_not_urgent"></ul>
+        </div>
+        <div class="section not_important_urgent">
+            <h2>Interruptions</h2>
+            <ul id="not-important-urgent-tasks" data-section="not_important_urgent"></ul>
+        </div>
+        <div class="section neither_urgent_nor_important">
+            <h2>Distractions</h2>
+            <ul id="neither-urgent-nor-important-tasks" data-section="neither_urgent_nor_important"></ul>
+        </div>
+        <div class="section completed">
+            <h2>Completed Tasks</h2>
+            <ul id="completed-tasks" data-section="completed"></ul>
+            <button id="clear-completed" aria-label="Clear all completed tasks" style="display: none;">Clear Completed Tasks</button>
+            <button id="reset-schedule" aria-label="Reset schedule to default">Reset Schedule</button>
+        </div>
+        <div class="notification-status-container">
+            <button id="toggle-notifications" aria-label="Toggle notifications">Enable Notifications</button>
+            <div id="notification-status" class="notification-status" aria-live="polite">Notifications: Disabled</div>
+        </div>
+    </div>
+    <audio id="alert-sound" src="alert.mp3"></audio>
+    <script>
+        // Default schedule with tasks in new categories
+        const defaultSchedule = [
+            { start: "06:00", end: "07:00", task: "Market place", section: "morning", completed: false },
+            { start: "07:00", end: "08:00", task: "Agency", section: "morning", completed: false },
+            { start: "08:00", end: "09:00", task: "Loom video", section: "morning", completed: false },
+            { start: "09:00", end: "10:00", task: "Shopify", section: "morning", completed: false },
+            { start: "11:00", end: "12:00", task: "Clients work if not find client", section: "noon", completed: false },
+            { start: "12:00", end: "13:00", task: "Clients work if not find client", section: "noon", completed: false },
+            { start: "13:00", end: "14:00", task: "Clients work if not find client", section: "noon", completed: false },
+            { start: "14:00", end: "15:00", task: "ReCareUP work", section: "noon", completed: false },
+            { start: "19:00", end: "20:00", task: "ReCareUP work", section: "evening", completed: false },
+            { start: "10:00", end: "10:30", task: "Urgent client call", section: "important_urgent", completed: false },
+            { start: "15:00", end: "16:00", task: "Long-term project planning", section: "important_not_urgent", completed: false },
+            { start: "16:00", end: "16:30", task: "Respond to emails", section: "not_important_urgent", completed: false },
+            { start: "17:00", end: "17:30", task: "Check social media", section: "neither_urgent_nor_important", completed: false }
+        ];
+
+        // Load tasks from localStorage or use default schedule
+        let schedule = JSON.parse(localStorage.getItem('schedule')) || defaultSchedule;
+
+        // DOM elements
+        const currentTaskEl = document.getElementById('current-task');
+        const timerEl = document.getElementById('timer');
+        const morningTasksEl = document.getElementById('morning-tasks');
+        const noonTasksEl = document.getElementById('noon-tasks');
+        const eveningTasksEl = document.getElementById('evening-tasks');
+        const importantUrgentTasksEl = document.getElementById('important-urgent-tasks');
+        const importantNotUrgentTasksEl = document.getElementById('important-not-urgent-tasks');
+        const notImportantUrgentTasksEl = document.getElementById('not-important-urgent-tasks');
+        const neitherUrgentNorImportantTasksEl = document.getElementById('neither-urgent-nor-important-tasks');
+        const completedTasksEl = document.getElementById('completed-tasks');
+        const addTaskForm = document.getElementById('add-task-form');
+        const themeToggle = document.getElementById('theme-toggle');
+        const toggleNotifications = document.getElementById('toggle-notifications');
+        const notificationStatus = document.getElementById('notification-status');
+        const clearCompleted = document.getElementById('clear-completed');
+        const resetSchedule = document.getElementById('reset-schedule');
+        const alertSound = document.getElementById('alert-sound');
+
+        // Notification state
+        let notificationsEnabled = localStorage.getItem('notificationsEnabled') === 'true';
+        updateNotificationStatus();
+
+        // Dark mode toggle
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+        });
+
+        // Load dark mode preference
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.body.classList.add('dark-mode');
+        }
+
+        // Notification toggle
+        function updateNotificationStatus() {
+            if (notificationsEnabled && Notification.permission === 'granted') {
+                notificationStatus.textContent = 'Notifications: Enabled';
+                toggleNotifications.textContent = 'Disable Notifications';
+            } else {
+                notificationStatus.textContent = 'Notifications: Disabled';
+                toggleNotifications.textContent = 'Enable Notifications';
+            }
+        }
+
+        toggleNotifications.addEventListener('click', () => {
+            if (!notificationsEnabled) {
+                Notification.requestPermission().then(permission => {
+                    notificationsEnabled = permission === 'granted';
+                    localStorage.setItem('notificationsEnabled', notificationsEnabled);
+                    updateNotificationStatus();
+                });
+            } else {
+                notificationsEnabled = false;
+                localStorage.setItem('notificationsEnabled', notificationsEnabled);
+                updateNotificationStatus();
+            }
+        });
+
+        // Reset schedule
+        resetSchedule.addEventListener('click', () => {
+            if (confirm('Are you sure you want to reset the schedule to default? This will clear all tasks.')) {
+                schedule = [...defaultSchedule];
+                localStorage.setItem('schedule', JSON.stringify(schedule));
+                renderTasks();
+            }
+        });
+
+        // Format time to 12-hour format
+        function formatTime(time) {
+            const [hours, minutes] = time.split(':').map(Number);
+            const period = hours >= 12 ? 'PM' : 'AM';
+            const formattedHours = hours % 12 || 12;
+            return `${formattedHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}${period}`;
+        }
+
+        // Render tasks
+        function renderTasks() {
+            morningTasksEl.innerHTML = '';
+            noonTasksEl.innerHTML = '';
+            eveningTasksEl.innerHTML = '';
+            importantUrgentTasksEl.innerHTML = '';
+            importantNotUrgentTasksEl.innerHTML = '';
+            notImportantUrgentTasksEl.innerHTML = '';
+            neitherUrgentNorImportantTasksEl.innerHTML = '';
+            completedTasksEl.innerHTML = '';
+
+            // Create a map of tasks with their original indices
+            const taskIndices = new Map();
+            schedule.forEach((task, index) => taskIndices.set(task, index));
+
+            // Sort active and completed tasks
+            const activeTasks = schedule.filter(task => !task.completed);
+            const completedTasks = schedule.filter(task => task.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+
+            // Render active tasks
+            activeTasks.forEach((task) => {
+                const index = taskIndices.get(task);
+                const li = document.createElement('li');
+                li.draggable = true;
+                li.dataset.start = task.start;
+                li.dataset.end = task.end;
+                li.dataset.task = task.task;
+                li.dataset.section = task.section;
+                li.dataset.index = index;
+                li.setAttribute('aria-grabbed', 'false');
+                li.innerHTML = `
+                    ${formatTime(task.start)} - ${formatTime(task.end)} - ${task.task}
+                    <div>
+                        <button class="complete-btn" aria-label="Complete task ${task.task}">Complete</button>
+                        <button class="edit-btn" aria-label="Edit task ${task.task}">Edit</button>
+                        <button class="delete-btn" aria-label="Delete task ${task.task}">Delete</button>
+                    </div>
+                `;
+                const editForm = document.createElement('form');
+                editForm.classList.add('edit-form');
+                editForm.innerHTML = `
+                    <input type="time" name="edit-start" value="${task.start}" required aria-label="Edit start time">
+                    <input type="time" name="edit-end" value="${task.end}" required aria-label="Edit end time">
+                    <input type="text" name="edit-task" value="${task.task}" required aria-label="Edit task name">
+                    <select name="edit-section" aria-label="Edit schedule section">
+                        <option value="morning" title="Morning tasks" ${task.section === 'morning' ? 'selected' : ''}>Morning</option>
+                        <option value="noon" title="Noon tasks" ${task.section === 'noon' ? 'selected' : ''}>Noon</option>
+                        <option value="evening" title="Evening tasks" ${task.section === 'evening' ? 'selected' : ''}>Evening</option>
+                        <option value="important_urgent" title="Crises" ${task.section === 'important_urgent' ? 'selected' : ''}>Important, urgent</option>
+                        <option value="important_not_urgent" title="Goals & Planning" ${task.section === 'important_not_urgent' ? 'selected' : ''}>Important but not urgent</option>
+                        <option value="not_important_urgent" title="Interruptions" ${task.section === 'not_important_urgent' ? 'selected' : ''}>Not Important, urgent</option>
+                        <option value="neither_urgent_nor_important" title="Distractions" ${task.section === 'neither_urgent_nor_important' ? 'selected' : ''}>Neither urgent nor important</option>
+                    </select>
+                    <input type="submit" value="Save">
+                    <button type="button" class="cancel-edit" aria-label="Cancel edit">Cancel</button>
+                `;
+
+                const targetList = {
+                    morning: morningTasksEl,
+                    noon: noonTasksEl,
+                    evening: eveningTasksEl,
+                    important_urgent: importantUrgentTasksEl,
+                    important_not_urgent: importantNotUrgentTasksEl,
+                    not_important_urgent: notImportantUrgentTasksEl,
+                    neither_urgent_nor_important: neitherUrgentNorImportantTasksEl
+                }[task.section];
+
+                targetList.appendChild(li);
+                targetList.appendChild(editForm);
+
+                // Drag start
+                li.addEventListener('dragstart', (e) => {
+                    li.classList.add('dragging');
+                    li.setAttribute('aria-grabbed', 'true');
+                    e.dataTransfer.setData('text/plain', index);
+                });
+
+                // Drag end
+                li.addEventListener('dragend', () => {
+                    li.classList.remove('dragging');
+                    li.setAttribute('aria-grabbed', 'false');
+                    document.querySelectorAll('ul').forEach(ul => ul.classList.remove('drag-over'));
+                });
+
+                // Complete task
+                li.querySelector('.complete-btn').addEventListener('click', () => {
+                    schedule[index].completed = true;
+                    schedule[index].completedAt = Date.now();
+                    localStorage.setItem('schedule', JSON.stringify(schedule));
+                    renderTasks();
+                });
+
+                // Delete task
+                li.querySelector('.delete-btn').addEventListener('click', () => {
+                    schedule.splice(index, 1);
+                    localStorage.setItem('schedule', JSON.stringify(schedule));
+                    renderTasks();
+                });
+
+                // Edit task
+                li.querySelector('.edit-btn').addEventListener('click', () => {
+                    editForm.style.display = 'flex';
+                    li.style.display = 'none';
+                });
+
+                // Save edited task
+                editForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const newStart = editForm.querySelector('[name="edit-start"]').value;
+                    const newEnd = editForm.querySelector('[name="edit-end"]').value;
+                    const newTask = editForm.querySelector('[name="edit-task"]').value;
+                    const newSection = editForm.querySelector('[name="edit-section"]').value;
+
+                    if (newStart >= newEnd) {
+                        alert('End time must be after start time.');
+                        return;
+                    }
+
+                    schedule[index] = { start: newStart, end: newEnd, task: newTask, section: newSection, completed: schedule[index].completed, completedAt: schedule[index].completedAt };
+                    localStorage.setItem('schedule', JSON.stringify(schedule));
+                    renderTasks();
+                });
+
+                // Cancel edit
+                editForm.querySelector('.cancel-edit').addEventListener('click', () => {
+                    editForm.style.display = 'none';
+                    li.style.display = 'flex';
+                });
+            });
+
+            // Render completed tasks
+            completedTasks.forEach((task) => {
+                const index = taskIndices.get(task);
+                const li = document.createElement('li');
+                li.draggable = true;
+                li.classList.add('completed');
+                li.dataset.start = task.start;
+                li.dataset.end = task.end;
+                li.dataset.task = task.task;
+                li.dataset.section = task.section;
+                li.dataset.index = index;
+                li.setAttribute('aria-grabbed', 'false');
+                li.innerHTML = `
+                    ${formatTime(task.start)} - ${formatTime(task.end)} - ${task.task}
+                    <div>
+                        <button class="back-btn" aria-label="Move task ${task.task} back to active">Back</button>
+                        <button class="edit-btn" aria-label="Edit task ${task.task}">Edit</button>
+                        <button class="delete-btn" aria-label="Delete task ${task.task}">Delete</button>
+                    </div>
+                `;
+                const editForm = document.createElement('form');
+                editForm.classList.add('edit-form');
+                editForm.innerHTML = `
+                    <input type="time" name="edit-start" value="${task.start}" required aria-label="Edit start time">
+                    <input type="time" name="edit-end" value="${task.end}" required aria-label="Edit end time">
+                    <input type="text" name="edit-task" value="${task.task}" required aria-label="Edit task name">
+                    <select name="edit-section" aria-label="Edit schedule section">
+                        <option value="morning" title="Morning tasks" ${task.section === 'morning' ? 'selected' : ''}>Morning</option>
+                        <option value="noon" title="Noon tasks" ${task.section === 'noon' ? 'selected' : ''}>Noon</option>
+                        <option value="evening" title="Evening tasks" ${task.section === 'evening' ? 'selected' : ''}>Evening</option>
+                        <option value="important_urgent" title="Crises" ${task.section === 'important_urgent' ? 'selected' : ''}>Important, urgent</option>
+                        <option value="important_not_urgent" title="Goals & Planning" ${task.section === 'important_not_urgent' ? 'selected' : ''}>Important but not urgent</option>
+                        <option value="not_important_urgent" title="Interruptions" ${task.section === 'not_important_urgent' ? 'selected' : ''}>Not Important, urgent</option>
+                        <option value="neither_urgent_nor_important" title="Distractions" ${task.section === 'neither_urgent_nor_important' ? 'selected' : ''}>Neither urgent nor important</option>
+                    </select>
+                    <input type="submit" value="Save">
+                    <button type="button" class="cancel-edit" aria-label="Cancel edit">Cancel</button>
+                `;
+
+                completedTasksEl.appendChild(li);
+                completedTasksEl.appendChild(editForm);
+
+                // Drag start
+                li.addEventListener('dragstart', (e) => {
+                    li.classList.add('dragging');
+                    li.setAttribute('aria-grabbed', 'true');
+                    e.dataTransfer.setData('text/plain', index);
+                });
+
+                // Drag end
+                li.addEventListener('dragend', () => {
+                    li.classList.remove('dragging');
+                    li.setAttribute('aria-grabbed', 'false');
+                    document.querySelectorAll('ul').forEach(ul => ul.classList.remove('drag-over'));
+                });
+
+                // Move back to active
+                li.querySelector('.back-btn').addEventListener('click', () => {
+                    schedule[index].completed = false;
+                    delete schedule[index].completedAt;
+                    localStorage.setItem('schedule', JSON.stringify(schedule));
+                    renderTasks();
+                });
+
+                // Delete completed task
+                li.querySelector('.delete-btn').addEventListener('click', () => {
+                    schedule.splice(index, 1);
+                    localStorage.setItem('schedule', JSON.stringify(schedule));
+                    renderTasks();
+                });
+
+                // Edit completed task
+                li.querySelector('.edit-btn').addEventListener('click', () => {
+                    editForm.style.display = 'flex';
+                    li.style.display = 'none';
+                });
+
+                // Save edited completed task
+                editForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const newStart = editForm.querySelector('[name="edit-start"]').value;
+                    const newEnd = editForm.querySelector('[name="edit-end"]').value;
+                    const newTask = editForm.querySelector('[name="edit-task"]').value;
+                    const newSection = editForm.querySelector('[name="edit-section"]').value;
+
+                    if (newStart >= newEnd) {
+                        alert('End time must be after start time.');
+                        return;
+                    }
+
+                    schedule[index] = { start: newStart, end: newEnd, task: newTask, section: newSection, completed: schedule[index].completed, completedAt: schedule[index].completedAt };
+                    localStorage.setItem('schedule', JSON.stringify(schedule));
+                    renderTasks();
+                });
+
+                // Cancel edit
+                editForm.querySelector('.cancel-edit').addEventListener('click', () => {
+                    editForm.style.display = 'none';
+                    li.style.display = 'flex';
+                });
+            });
+
+            // Show/hide clear completed button
+            clearCompleted.style.display = completedTasks.length > 0 ? 'block' : 'none';
+        }
+
+        // Drag-and-drop handlers
+        const dropZones = document.querySelectorAll('ul');
+        dropZones.forEach(zone => {
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                zone.classList.add('drag-over');
+            });
+
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('drag-over');
+            });
+
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('drag-over');
+                const index = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                const newSection = zone.dataset.section;
+                const afterElement = getDragAfterElement(zone, e.clientY);
+
+                if (index >= 0 && index < schedule.length) {
+                    const task = schedule[index];
+                    const oldSection = task.section;
+                    const isCompleted = task.completed;
+
+                    // Remove the task from the schedule
+                    const [movedTask] = schedule.splice(index, 1);
+
+                    // Determine new position
+                    let insertIndex;
+                    if (afterElement) {
+                        insertIndex = schedule.findIndex(t => t.start === afterElement.dataset.start && t.end === afterElement.dataset.end && t.task === afterElement.dataset.task);
+                        if (insertIndex === -1) insertIndex = schedule.length;
+                    } else {
+                        insertIndex = schedule.length;
+                    }
+
+                    // Update section and completion status
+                    if (newSection === 'completed') {
+                        movedTask.completed = true;
+                        movedTask.completedAt = Date.now();
+                    } else if (newSection !== oldSection || (newSection === 'completed' && !isCompleted)) {
+                        movedTask.completed = false;
+                        delete movedTask.completedAt;
+                        movedTask.section = newSection;
+                    }
+
+                    // Insert task at the new position
+                    schedule.splice(insertIndex, 0, movedTask);
+
+                    localStorage.setItem('schedule', JSON.stringify(schedule));
+                    renderTasks();
+                }
+            });
+        });
+
+        // Helper function to determine the closest task for reordering
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('li:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                }
+                return closest;
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        // Clear completed tasks
+        clearCompleted.addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear all completed tasks?')) {
+                schedule = schedule.filter(task => !task.completed);
+                localStorage.setItem('schedule', JSON.stringify(schedule));
+                renderTasks();
+            }
+        });
+
+        // Add task
+        addTaskForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const start = document.getElementById('start-time').value;
+            const end = document.getElementById('end-time').value;
+            const taskName = document.getElementById('task-name').value;
+            const section = document.getElementById('section').value;
+
+            if (start >= end) {
+                alert('End time must be after start time.');
+                return;
+            }
+
+            schedule.push({ start, end, task: taskName, section, completed: false });
+            localStorage.setItem('schedule', JSON.stringify(schedule));
+            renderTasks();
+            addTaskForm.reset();
+        });
+
+        // Update current task and timer
+        function updateTimer() {
+            const now = new Date();
+            const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+            let currentTask = null;
+
+            schedule.forEach(task => {
+                if (!task.completed && currentTime >= task.start && currentTime < task.end) {
+                    currentTask = task;
+                    task.element = document.querySelector(`li[data-start="${task.start}"][data-end="${task.end}"][data-task="${task.task}"]`);
+                }
+            });
+
+            document.querySelectorAll('li').forEach(li => li.classList.remove('active'));
+
+            if (currentTask) {
+                currentTaskEl.textContent = `Current Task: ${currentTask.task}`;
+                const endTime = new Date();
+                const [endHours, endMinutes] = currentTask.end.split(':').map(Number);
+                endTime.setHours(endHours, endMinutes, 0, 0);
+                const timeLeft = endTime - now;
+                if (timeLeft > 0) {
+                    const minutes = Math.floor(timeLeft / 60000);
+                    const seconds = Math.floor((timeLeft % 60000) / 1000);
+                    timerEl.textContent = `Time Left: ${minutes}m ${seconds}s`;
+                    if (notificationsEnabled && minutes === 0 && seconds <= 10 && seconds > 0) {
+                        if (Notification.permission === 'granted') {
+                            new Notification(`Task "${currentTask.task}" ending soon!`);
+                        }
+                        alertSound.play().catch(() => console.log('Audio playback failed'));
+                    }
+                } else {
+                    currentTaskEl.textContent = 'Current Task: None';
+                    timerEl.textContent = 'Time Left: --';
+                    if (notificationsEnabled && Notification.permission === 'granted') {
+                        new Notification(`Task "${currentTask.task}" has ended!`);
+                    }
+                    if (notificationsEnabled) {
+                        alertSound.play().catch(() => console.log('Audio playback failed'));
+                    }
+                }
+                if (currentTask.element) {
+                    currentTask.element.classList.add('active');
+                }
+            } else {
+                currentTaskEl.textContent = 'Current Task: None';
+                timerEl.textContent = 'Time Left: --';
+            }
+        }
+
+        // Initial render and timer update
+        renderTasks();
+        updateTimer();
+        setInterval(updateTimer, 1000);
+    </script>
+</body>
+</html>
