@@ -14,6 +14,7 @@
             --active-bg: #90ee90;
             --completed-bg: #f1f3f5;
             --drag-over-bg: #d1d5db;
+            --subtask-bg: #f9fafb;
         }
         .dark-mode {
             --bg-color: #1f2937;
@@ -24,6 +25,7 @@
             --active-bg: #68d391;
             --completed-bg: #2d3748;
             --drag-over-bg: #6b7280;
+            --subtask-bg: #2d3748;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -62,12 +64,17 @@
             padding: 0;
             min-height: 20px;
         }
-        ul.drag-over {
+        ul.drag-over:not(.subtask-list) {
             background: var(--drag-over-bg);
             border: 2px dashed var(--section-border);
             border-radius: 8px;
         }
-        li {
+        ul.subtask-list.drag-over {
+            background: var(--drag-over-bg);
+            border: 1px dashed var(--section-border);
+            border-radius: 6px;
+        }
+        li.task, li.subtask {
             padding: 12px;
             margin: 8px 0;
             background: var(--li-bg);
@@ -79,24 +86,51 @@
             position: relative;
             cursor: move;
         }
-        li.dragging {
+        li.subtask {
+            margin-left: 20px;
+            background: var(--subtask-bg);
+        }
+        li.task.dragging, li.subtask.dragging {
             opacity: 0.5;
             transform: scale(0.98);
         }
-        li:hover {
+        li.task:hover, li.subtask:hover {
             transform: scale(1.02);
         }
-        li.active {
+        li.task.active {
             background: var(--active-bg);
             font-weight: 600;
         }
-        li.completed {
+        li.task.completed, li.subtask.completed {
             text-decoration: line-through;
             opacity: 0.7;
             background: var(--completed-bg);
         }
-        li:hover .edit-btn, li:hover .delete-btn, li:hover .complete-btn, li:hover .back-btn {
+        li.task:hover .edit-btn, li.task:hover .delete-btn, li.task:hover .complete-btn, li.task:hover .back-btn, li.task:hover .add-subtask-btn,
+        li.subtask:hover .edit-btn, li.subtask:hover .delete-btn, li.subtask:hover .complete-btn, li.subtask:hover .back-btn {
             display: inline-block;
+        }
+        .subtask-list {
+            display: none;
+            margin-left: 20px;
+        }
+        .subtask-list.expanded {
+            display: block;
+        }
+        .toggle-subtasks {
+            cursor: pointer;
+            margin-right: 8px;
+            font-size: 0.9em;
+        }
+        .section-label {
+            font-size: 0.8em;
+            color: #6b7280;
+            margin-left: 8px;
+        }
+        .completed-timestamp {
+            font-size: 0.8em;
+            color: #6b7280;
+            margin-left: 8px;
         }
         #current-task {
             text-align: center;
@@ -136,7 +170,7 @@
             border-radius: 6px;
             font-size: 1em;
         }
-        .delete-btn, .edit-btn, .complete-btn, .back-btn {
+        .delete-btn, .edit-btn, .complete-btn, .back-btn, .add-subtask-btn {
             padding: 6px 12px;
             font-size: 0.9em;
             margin-left: 8px;
@@ -168,7 +202,14 @@
         .back-btn:hover {
             background: #7c3aed;
         }
-        .edit-form {
+        .add-subtask-btn {
+            background: #3b82f6;
+            display: none;
+        }
+        .add-subtask-btn:hover {
+            background: #2563eb;
+        }
+        .edit-form, .subtask-form {
             display: none;
             flex-direction: column;
             gap: 12px;
@@ -176,6 +217,9 @@
             background: var(--li-bg);
             border-radius: 8px;
             margin-top: 12px;
+        }
+        .subtask-form {
+            margin-left: 20px;
         }
         .notification-status-container {
             display: flex;
@@ -196,9 +240,12 @@
             h1 {
                 font-size: 1.6em;
             }
-            li {
+            li.task, li.subtask {
                 font-size: 0.9em;
                 padding: 10px;
+            }
+            .section-label, .completed-timestamp {
+                font-size: 0.7em;
             }
             #current-task, #timer {
                 font-size: 1.1em;
@@ -207,9 +254,21 @@
                 padding: 8px;
                 font-size: 0.9em;
             }
-            form, .edit-form {
+            form, .edit-form, .subtask-form {
                 flex-direction: column;
             }
+        }
+
+        /* Raihan Customize */
+        form#add-task-form input[type="submit"] {
+            margin: 10px 0;
+        }
+        #theme-toggle {
+            display: none;
+        }
+        button#reset-schedule {
+            display: flex;
+            margin-top: 100px;
         }
     </style>
 </head>
@@ -278,21 +337,21 @@
     </div>
     <audio id="alert-sound" src="alert.mp3"></audio>
     <script>
-        // Default schedule with tasks in new categories
+        // Default schedule with tasks in new categories, including subtasks
         const defaultSchedule = [
-            { start: "06:00", end: "07:00", task: "Market place", section: "morning", completed: false },
-            { start: "07:00", end: "08:00", task: "Agency", section: "morning", completed: false },
-            { start: "08:00", end: "09:00", task: "Loom video", section: "morning", completed: false },
-            { start: "09:00", end: "10:00", task: "Shopify", section: "morning", completed: false },
-            { start: "11:00", end: "12:00", task: "Clients work if not find client", section: "noon", completed: false },
-            { start: "12:00", end: "13:00", task: "Clients work if not find client", section: "noon", completed: false },
-            { start: "13:00", end: "14:00", task: "Clients work if not find client", section: "noon", completed: false },
-            { start: "14:00", end: "15:00", task: "ReCareUP work", section: "noon", completed: false },
-            { start: "19:00", end: "20:00", task: "ReCareUP work", section: "evening", completed: false },
-            { start: "10:00", end: "10:30", task: "Urgent client call", section: "important_urgent", completed: false },
-            { start: "15:00", end: "16:00", task: "Long-term project planning", section: "important_not_urgent", completed: false },
-            { start: "16:00", end: "16:30", task: "Respond to emails", section: "not_important_urgent", completed: false },
-            { start: "17:00", end: "17:30", task: "Check social media", section: "neither_urgent_nor_important", completed: false }
+            { start: "06:00", end: "07:00", task: "Market place", section: "morning", completed: false, subtasks: [] },
+            { start: "07:00", end: "08:00", task: "Agency", section: "morning", completed: false, subtasks: [] },
+            { start: "08:00", end: "09:00", task: "Loom video", section: "morning", completed: false, subtasks: [] },
+            { start: "09:00", end: "10:00", task: "Shopify", section: "morning", completed: false, subtasks: [] },
+            { start: "11:00", end: "12:00", task: "Clients work if not find client", section: "noon", completed: false, subtasks: [] },
+            { start: "12:00", end: "13:00", task: "Clients work if not find client", section: "noon", completed: false, subtasks: [] },
+            { start: "13:00", end: "14:00", task: "Clients work if not find client", section: "noon", completed: false, subtasks: [] },
+            { start: "14:00", end: "15:00", task: "ReCareUP work", section: "noon", completed: false, subtasks: [] },
+            { start: "19:00", end: "20:00", task: "ReCareUP work", section: "evening", completed: false, subtasks: [] },
+            { start: "10:00", end: "10:30", task: "Urgent client call", section: "important_urgent", completed: false, subtasks: [] },
+            { start: "15:00", end: "16:00", task: "Long-term project planning", section: "important_not_urgent", completed: false, subtasks: [] },
+            { start: "16:00", end: "16:30", task: "Respond to emails", section: "not_important_urgent", completed: false, subtasks: [] },
+            { start: "17:00", end: "17:30", task: "Check social media", section: "neither_urgent_nor_important", completed: false, subtasks: [] }
         ];
 
         // Load tasks from localStorage or use default schedule
@@ -325,6 +384,7 @@
         themeToggle.addEventListener('click', () => {
             document.body.classList.toggle('dark-mode');
             localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+            renderTasks();
         });
 
         // Load dark mode preference
@@ -374,6 +434,13 @@
             return `${formattedHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}${period}`;
         }
 
+        // Format timestamp to readable date
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return '';
+            const date = new Date(timestamp);
+            return `Completed: ${date.toLocaleString()}`;
+        }
+
         // Render tasks
         function renderTasks() {
             morningTasksEl.innerHTML = '';
@@ -393,10 +460,23 @@
             const activeTasks = schedule.filter(task => !task.completed);
             const completedTasks = schedule.filter(task => task.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
 
+            // Section name mapping for display
+            const sectionNames = {
+                morning: 'Morning',
+                noon: 'Noon',
+                evening: 'Evening',
+                important_urgent: 'Crises',
+                important_not_urgent: 'Goals & Planning',
+                not_important_urgent: 'Interruptions',
+                neither_urgent_nor_important: 'Distractions',
+                completed: 'Completed'
+            };
+
             // Render active tasks
             activeTasks.forEach((task) => {
                 const index = taskIndices.get(task);
                 const li = document.createElement('li');
+                li.classList.add('task');
                 li.draggable = true;
                 li.dataset.start = task.start;
                 li.dataset.end = task.end;
@@ -404,12 +484,16 @@
                 li.dataset.section = task.section;
                 li.dataset.index = index;
                 li.setAttribute('aria-grabbed', 'false');
+                li.setAttribute('role', 'listitem');
                 li.innerHTML = `
+                    <span class="toggle-subtasks" aria-label="Toggle subtasks for ${task.task}">${task.subtasks && task.subtasks.length > 0 ? '▼' : '◄'}</span>
                     ${formatTime(task.start)} - ${formatTime(task.end)} - ${task.task}
+                   <!-- <span class="section-label">[${sectionNames[task.section]}]</span> -->
                     <div>
                         <button class="complete-btn" aria-label="Complete task ${task.task}">Complete</button>
                         <button class="edit-btn" aria-label="Edit task ${task.task}">Edit</button>
                         <button class="delete-btn" aria-label="Delete task ${task.task}">Delete</button>
+                        <button class="add-subtask-btn" aria-label="Add subtask to ${task.task}">Add Subtask</button>
                     </div>
                 `;
                 const editForm = document.createElement('form');
@@ -430,6 +514,112 @@
                     <input type="submit" value="Save">
                     <button type="button" class="cancel-edit" aria-label="Cancel edit">Cancel</button>
                 `;
+                const subtaskForm = document.createElement('form');
+                subtaskForm.classList.add('subtask-form');
+                subtaskForm.innerHTML = `
+                    <input type="text" name="subtask-description" placeholder="Subtask name" required aria-label="Subtask name">
+                    <input type="submit" value="Add Subtask">
+                    <button type="button" class="cancel-subtask" aria-label="Cancel adding subtask">Cancel</button>
+                `;
+                const subtaskList = document.createElement('ul');
+                subtaskList.classList.add('subtask-list');
+                subtaskList.dataset.parentIndex = index;
+                if (task.subtasks && task.subtasks.length > 0) {
+                    subtaskList.classList.add('expanded');
+                }
+
+                // Render subtasks
+                (task.subtasks || []).forEach((subtask, subtaskIndex) => {
+                    const subtaskLi = document.createElement('li');
+                    subtaskLi.classList.add('subtask');
+                    if (subtask.completed) subtaskLi.classList.add('completed');
+                    subtaskLi.draggable = true;
+                    subtaskLi.dataset.task = subtask.task;
+                    subtaskLi.dataset.parentIndex = index;
+                    subtaskLi.dataset.subtaskIndex = subtaskIndex;
+                    subtaskLi.setAttribute('aria-grabbed', 'false');
+                    subtaskLi.setAttribute('role', 'listitem');
+                    subtaskLi.innerHTML = `
+                        ${subtask.task}
+                        <div>
+                            ${subtask.completed
+                                ? `<button class="back-btn" aria-label="Move subtask ${subtask.task} back to active">Back</button>`
+                                : `<button class="complete-btn" aria-label="Complete subtask ${subtask.task}">Complete</button>`}
+                            <button class="edit-btn" aria-label="Edit subtask ${subtask.task}">Edit</button>
+                            <button class="delete-btn" aria-label="Delete subtask ${subtask.task}">Delete</button>
+                        </div>
+                    `;
+                    const subtaskEditForm = document.createElement('form');
+                    subtaskEditForm.classList.add('subtask-form');
+                    subtaskEditForm.style.display = 'none';
+                    subtaskEditForm.innerHTML = `
+                        <input type="text" name="edit-subtask-task" value="${subtask.task}" required aria-label="Edit subtask name">
+                        <input type="submit" value="Save">
+                        <button type="button" class="cancel-edit-subtask" aria-label="Cancel editing subtask">Cancel</button>
+                    `;
+                    subtaskList.appendChild(subtaskLi);
+                    subtaskList.appendChild(subtaskEditForm);
+
+                    // Drag start for subtask
+                    subtaskLi.addEventListener('dragstart', (e) => {
+                        subtaskLi.classList.add('dragging');
+                        subtaskLi.setAttribute('aria-grabbed', 'true');
+                        e.dataTransfer.setData('text/plain', `${index}:${subtaskIndex}`);
+                    });
+
+                    // Drag end for subtask
+                    subtaskLi.addEventListener('dragend', () => {
+                        subtaskLi.classList.remove('dragging');
+                        subtaskLi.setAttribute('aria-grabbed', 'false');
+                        document.querySelectorAll('ul').forEach(ul => ul.classList.remove('drag-over'));
+                    });
+
+                    // Complete or move back subtask
+                    if (subtask.completed) {
+                        subtaskLi.querySelector('.back-btn').addEventListener('click', () => {
+                            schedule[index].subtasks[subtaskIndex].completed = false;
+                            localStorage.setItem('schedule', JSON.stringify(schedule));
+                            renderTasks();
+                        });
+                    } else {
+                        subtaskLi.querySelector('.complete-btn').addEventListener('click', () => {
+                            schedule[index].subtasks[subtaskIndex].completed = true;
+                            localStorage.setItem('schedule', JSON.stringify(schedule));
+                            renderTasks();
+                        });
+                    }
+
+                    // Edit subtask
+                    subtaskLi.querySelector('.edit-btn').addEventListener('click', () => {
+                        subtaskEditForm.style.display = 'flex';
+                        subtaskLi.style.display = 'none';
+                    });
+
+                    // Save edited subtask
+                    subtaskEditForm.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        const newTask = subtaskEditForm.querySelector('[name="edit-subtask-task"]').value;
+                        schedule[index].subtasks[subtaskIndex] = {
+                            task: newTask,
+                            completed: schedule[index].subtasks[subtaskIndex].completed
+                        };
+                        localStorage.setItem('schedule', JSON.stringify(schedule));
+                        renderTasks();
+                    });
+
+                    // Cancel edit subtask
+                    subtaskEditForm.querySelector('.cancel-edit-subtask').addEventListener('click', () => {
+                        subtaskEditForm.style.display = 'none';
+                        subtaskLi.style.display = 'flex';
+                    });
+
+                    // Delete subtask
+                    subtaskLi.querySelector('.delete-btn').addEventListener('click', () => {
+                        schedule[index].subtasks.splice(subtaskIndex, 1);
+                        localStorage.setItem('schedule', JSON.stringify(schedule));
+                        renderTasks();
+                    });
+                });
 
                 const targetList = {
                     morning: morningTasksEl,
@@ -443,15 +633,46 @@
 
                 targetList.appendChild(li);
                 targetList.appendChild(editForm);
+                targetList.appendChild(subtaskForm);
+                targetList.appendChild(subtaskList);
 
-                // Drag start
+                // Toggle subtasks
+                li.querySelector('.toggle-subtasks').addEventListener('click', () => {
+                    const isExpanded = subtaskList.classList.toggle('expanded');
+                    li.querySelector('.toggle-subtasks').textContent = isExpanded ? '▼' : '◄';
+                    li.querySelector('.toggle-subtasks').setAttribute('aria-expanded', isExpanded);
+                });
+
+                // Add subtask
+                li.querySelector('.add-subtask-btn').addEventListener('click', () => {
+                    subtaskForm.style.display = 'flex';
+                    li.style.display = 'none';
+                });
+
+                // Save new subtask
+                subtaskForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const description = subtaskForm.querySelector('[name="subtask-description"]').value;
+                    if (!schedule[index].subtasks) schedule[index].subtasks = [];
+                    schedule[index].subtasks.push({ task: description, completed: false });
+                    localStorage.setItem('schedule', JSON.stringify(schedule));
+                    renderTasks();
+                });
+
+                // Cancel add subtask
+                subtaskForm.querySelector('.cancel-subtask').addEventListener('click', () => {
+                    subtaskForm.style.display = 'none';
+                    li.style.display = 'flex';
+                });
+
+                // Drag start for task
                 li.addEventListener('dragstart', (e) => {
                     li.classList.add('dragging');
                     li.setAttribute('aria-grabbed', 'true');
-                    e.dataTransfer.setData('text/plain', index);
+                    e.dataTransfer.setData('text/plain', `${index}:`);
                 });
 
-                // Drag end
+                // Drag end for task
                 li.addEventListener('dragend', () => {
                     li.classList.remove('dragging');
                     li.setAttribute('aria-grabbed', 'false');
@@ -492,7 +713,7 @@
                         return;
                     }
 
-                    schedule[index] = { start: newStart, end: newEnd, task: newTask, section: newSection, completed: schedule[index].completed, completedAt: schedule[index].completedAt };
+                    schedule[index] = { start: newStart, end: newEnd, task: newTask, section: newSection, completed: schedule[index].completed, completedAt: schedule[index].completedAt, subtasks: schedule[index].subtasks };
                     localStorage.setItem('schedule', JSON.stringify(schedule));
                     renderTasks();
                 });
@@ -508,20 +729,25 @@
             completedTasks.forEach((task) => {
                 const index = taskIndices.get(task);
                 const li = document.createElement('li');
+                li.classList.add('task', 'completed');
                 li.draggable = true;
-                li.classList.add('completed');
                 li.dataset.start = task.start;
                 li.dataset.end = task.end;
                 li.dataset.task = task.task;
                 li.dataset.section = task.section;
                 li.dataset.index = index;
                 li.setAttribute('aria-grabbed', 'false');
+                li.setAttribute('role', 'listitem');
                 li.innerHTML = `
+                    <span class="toggle-subtasks" aria-label="Toggle subtasks for ${task.task}">${task.subtasks && task.subtasks.length > 0 ? '▼' : '◄'}</span>
                     ${formatTime(task.start)} - ${formatTime(task.end)} - ${task.task}
+                    <!-- <span class="section-label">[${sectionNames[task.section]}]</span>  -->
+                    <span class="completed-timestamp">${formatTimestamp(task.completedAt)}</span>
                     <div>
                         <button class="back-btn" aria-label="Move task ${task.task} back to active">Back</button>
                         <button class="edit-btn" aria-label="Edit task ${task.task}">Edit</button>
                         <button class="delete-btn" aria-label="Delete task ${task.task}">Delete</button>
+                        <button class="add-subtask-btn" aria-label="Add subtask to ${task.task}">Add Subtask</button>
                     </div>
                 `;
                 const editForm = document.createElement('form');
@@ -542,22 +768,145 @@
                     <input type="submit" value="Save">
                     <button type="button" class="cancel-edit" aria-label="Cancel edit">Cancel</button>
                 `;
+                const subtaskForm = document.createElement('form');
+                subtaskForm.classList.add('subtask-form');
+                subtaskForm.innerHTML = `
+                    <input type="text" name="subtask-description" placeholder="Subtask name" required aria-label="Subtask name">
+                    <input type="submit" value="Add Subtask">
+                    <button type="button" class="cancel-subtask" aria-label="Cancel adding subtask">Cancel</button>
+                `;
+                const subtaskList = document.createElement('ul');
+                subtaskList.classList.add('subtask-list');
+                subtaskList.dataset.parentIndex = index;
+                if (task.subtasks && task.subtasks.length > 0) {
+                    subtaskList.classList.add('expanded');
+                }
+
+                // Render subtasks
+                (task.subtasks || []).forEach((subtask, subtaskIndex) => {
+                    const subtaskLi = document.createElement('li');
+                    subtaskLi.classList.add('subtask');
+                    if (subtask.completed) subtaskLi.classList.add('completed');
+                    subtaskLi.draggable = true;
+                    subtaskLi.dataset.task = subtask.task;
+                    subtaskLi.dataset.parentIndex = index;
+                    subtaskLi.dataset.subtaskIndex = subtaskIndex;
+                    subtaskLi.setAttribute('aria-grabbed', 'false');
+                    subtaskLi.setAttribute('role', 'listitem');
+                    subtaskLi.innerHTML = `
+                        ${subtask.task}
+                        <div>
+                            ${subtask.completed
+                                ? `<button class="back-btn" aria-label="Move subtask ${subtask.task} back to active">Back</button>`
+                                : `<button class="complete-btn" aria-label="Complete subtask ${subtask.task}">Complete</button>`}
+                            <button class="edit-btn" aria-label="Edit subtask ${subtask.task}">Edit</button>
+                            <button class="delete-btn" aria-label="Delete subtask ${subtask.task}">Delete</button>
+                        </div>
+                    `;
+                    const subtaskEditForm = document.createElement('form');
+                    subtaskEditForm.classList.add('subtask-form');
+                    subtaskEditForm.style.display = 'none';
+                    subtaskEditForm.innerHTML = `
+                        <input type="text" name="edit-subtask-task" value="${subtask.task}" required aria-label="Edit subtask name">
+                        <input type="submit" value="Save">
+                        <button type="button" class="cancel-edit-subtask" aria-label="Cancel editing subtask">Cancel</button>
+                    `;
+                    subtaskList.appendChild(subtaskLi);
+                    subtaskList.appendChild(subtaskEditForm);
+
+                    // Drag start for subtask
+                    subtaskLi.addEventListener('dragstart', (e) => {
+                        subtaskLi.classList.add('dragging');
+                        subtaskLi.setAttribute('aria-grabbed', 'true');
+                        e.dataTransfer.setData('text/plain', `${index}:${subtaskIndex}`);
+                    });
+
+                    // Drag end for subtask
+                    subtaskLi.addEventListener('dragend', () => {
+                        subtaskLi.classList.remove('dragging');
+                        subtaskLi.setAttribute('aria-grabbed', 'false');
+                        document.querySelectorAll('ul').forEach(ul => ul.classList.remove('drag-over'));
+                    });
+
+                    // Complete or move back subtask
+                    if (subtask.completed) {
+                        subtaskLi.querySelector('.back-btn').addEventListener('click', () => {
+                            schedule[index].subtasks[subtaskIndex].completed = false;
+                            localStorage.setItem('schedule', JSON.stringify(schedule));
+                            renderTasks();
+                        });
+                    } else {
+                        subtaskLi.querySelector('.complete-btn').addEventListener('click', () => {
+                            schedule[index].subtasks[subtaskIndex].completed = true;
+                            localStorage.setItem('schedule', JSON.stringify(schedule));
+                            renderTasks();
+                        });
+                    }
+
+                    // Edit subtask
+                    subtaskLi.querySelector('.edit-btn').addEventListener('click', () => {
+                        subtaskEditForm.style.display = 'flex';
+                        subtaskLi.style.display = 'none';
+                    });
+
+                    // Save edited subtask
+                    subtaskEditForm.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        const newTask = subtaskEditForm.querySelector('[name="edit-subtask-task"]').value;
+                        schedule[index].subtasks[subtaskIndex] = {
+                            task: newTask,
+                            completed: schedule[index].subtasks[subtaskIndex].completed
+                        };
+                        localStorage.setItem('schedule', JSON.stringify(schedule));
+                        renderTasks();
+                    });
+
+                    // Cancel edit subtask
+                    subtaskEditForm.querySelector('.cancel-edit-subtask').addEventListener('click', () => {
+                        subtaskEditForm.style.display = 'none';
+                        subtaskLi.style.display = 'flex';
+                    });
+
+                    // Delete subtask
+                    subtaskLi.querySelector('.delete-btn').addEventListener('click', () => {
+                        schedule[index].subtasks.splice(subtaskIndex, 1);
+                        localStorage.setItem('schedule', JSON.stringify(schedule));
+                        renderTasks();
+                    });
+                });
 
                 completedTasksEl.appendChild(li);
                 completedTasksEl.appendChild(editForm);
+                completedTasksEl.appendChild(subtaskForm);
+                completedTasksEl.appendChild(subtaskList);
 
-                // Drag start
-                li.addEventListener('dragstart', (e) => {
-                    li.classList.add('dragging');
-                    li.setAttribute('aria-grabbed', 'true');
-                    e.dataTransfer.setData('text/plain', index);
+                // Toggle subtasks
+                li.querySelector('.toggle-subtasks').addEventListener('click', () => {
+                    const isExpanded = subtaskList.classList.toggle('expanded');
+                    li.querySelector('.toggle-subtasks').textContent = isExpanded ? '▼' : '◄';
+                    li.querySelector('.toggle-subtasks').setAttribute('aria-expanded', isExpanded);
                 });
 
-                // Drag end
-                li.addEventListener('dragend', () => {
-                    li.classList.remove('dragging');
-                    li.setAttribute('aria-grabbed', 'false');
-                    document.querySelectorAll('ul').forEach(ul => ul.classList.remove('drag-over'));
+                // Add subtask
+                li.querySelector('.add-subtask-btn').addEventListener('click', () => {
+                    subtaskForm.style.display = 'flex';
+                    li.style.display = 'none';
+                });
+
+                // Save new subtask
+                subtaskForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const description = subtaskForm.querySelector('[name="subtask-description"]').value;
+                    if (!schedule[index].subtasks) schedule[index].subtasks = [];
+                    schedule[index].subtasks.push({ task: description, completed: false });
+                    localStorage.setItem('schedule', JSON.stringify(schedule));
+                    renderTasks();
+                });
+
+                // Cancel add subtask
+                subtaskForm.querySelector('.cancel-subtask').addEventListener('click', () => {
+                    subtaskForm.style.display = 'none';
+                    li.style.display = 'flex';
                 });
 
                 // Move back to active
@@ -594,7 +943,7 @@
                         return;
                     }
 
-                    schedule[index] = { start: newStart, end: newEnd, task: newTask, section: newSection, completed: schedule[index].completed, completedAt: schedule[index].completedAt };
+                    schedule[index] = { start: newStart, end: newEnd, task: newTask, section: newSection, completed: schedule[index].completed, completedAt: schedule[index].completedAt, subtasks: schedule[index].subtasks };
                     localStorage.setItem('schedule', JSON.stringify(schedule));
                     renderTasks();
                 });
@@ -615,7 +964,19 @@
         dropZones.forEach(zone => {
             zone.addEventListener('dragover', (e) => {
                 e.preventDefault();
-                zone.classList.add('drag-over');
+                const dragging = document.querySelector('.dragging');
+                if (dragging.classList.contains('subtask') && !zone.classList.contains('subtask-list')) {
+                    // Allow subtasks to be dropped only in section lists for moving parent task
+                    if (zone.dataset.section) {
+                        zone.classList.add('drag-over');
+                    }
+                } else if (dragging.classList.contains('subtask') && zone.classList.contains('subtask-list') && zone.dataset.parentIndex === dragging.dataset.parentIndex) {
+                    // Allow subtasks to be dropped in their own subtask-list for reordering
+                    zone.classList.add('drag-over');
+                } else if (dragging.classList.contains('task') && !zone.classList.contains('subtask-list')) {
+                    // Allow tasks to be dropped in section lists
+                    zone.classList.add('drag-over');
+                }
             });
 
             zone.addEventListener('dragleave', () => {
@@ -625,19 +986,51 @@
             zone.addEventListener('drop', (e) => {
                 e.preventDefault();
                 zone.classList.remove('drag-over');
-                const index = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                const data = e.dataTransfer.getData('text/plain').split(':');
+                const index = parseInt(data[0], 10);
+                const subtaskIndex = data[1] ? parseInt(data[1], 10) : null;
                 const newSection = zone.dataset.section;
-                const afterElement = getDragAfterElement(zone, e.clientY);
+                const parentIndex = parseInt(zone.dataset.parentIndex, 10);
 
-                if (index >= 0 && index < schedule.length) {
+                if (subtaskIndex !== null && index >= 0 && index < schedule.length && subtaskIndex >= 0 && subtaskIndex < schedule[index].subtasks.length) {
+                    // Subtask drag-and-drop
+                    if (zone.classList.contains('subtask-list') && parentIndex === index) {
+                        // Reorder within same parent task
+                        const afterSubtaskElement = getSubtaskAfterElement(zone, e.clientY, index);
+                        const parentTask = schedule[index];
+                        const [movedSubtask] = parentTask.subtasks.splice(subtaskIndex, 1);
+                        const newSubtaskIndex = afterSubtaskElement
+                            ? parentTask.subtasks.findIndex(st => st.task === afterSubtaskElement.dataset.task)
+                            : parentTask.subtasks.length;
+                        parentTask.subtasks.splice(newSubtaskIndex === -1 ? parentTask.subtasks.length : newSubtaskIndex, 0, movedSubtask);
+                    } else if (newSection) {
+                        // Move parent task to new section
+                        const afterElement = getDragAfterElement(zone, e.clientY);
+                        const [movedTask] = schedule.splice(index, 1);
+                        let insertIndex;
+                        if (afterElement) {
+                            insertIndex = schedule.findIndex(t => t.start === afterElement.dataset.start && t.end === afterElement.dataset.end && t.task === afterElement.dataset.task);
+                            if (insertIndex === -1) insertIndex = schedule.length;
+                        } else {
+                            insertIndex = schedule.length;
+                        }
+                        if (newSection === 'completed') {
+                            movedTask.completed = true;
+                            movedTask.completedAt = Date.now();
+                        } else {
+                            movedTask.completed = false;
+                            delete movedTask.completedAt;
+                            movedTask.section = newSection;
+                        }
+                        schedule.splice(insertIndex, 0, movedTask);
+                    }
+                    localStorage.setItem('schedule', JSON.stringify(schedule));
+                    renderTasks();
+                } else if (index >= 0 && index < schedule.length && !subtaskIndex && !zone.classList.contains('subtask-list')) {
+                    // Task drag-and-drop
                     const task = schedule[index];
-                    const oldSection = task.section;
-                    const isCompleted = task.completed;
-
-                    // Remove the task from the schedule
+                    const afterElement = getDragAfterElement(zone, e.clientY);
                     const [movedTask] = schedule.splice(index, 1);
-
-                    // Determine new position
                     let insertIndex;
                     if (afterElement) {
                         insertIndex = schedule.findIndex(t => t.start === afterElement.dataset.start && t.end === afterElement.dataset.end && t.task === afterElement.dataset.task);
@@ -645,20 +1038,15 @@
                     } else {
                         insertIndex = schedule.length;
                     }
-
-                    // Update section and completion status
                     if (newSection === 'completed') {
                         movedTask.completed = true;
                         movedTask.completedAt = Date.now();
-                    } else if (newSection !== oldSection || (newSection === 'completed' && !isCompleted)) {
+                    } else {
                         movedTask.completed = false;
                         delete movedTask.completedAt;
                         movedTask.section = newSection;
                     }
-
-                    // Insert task at the new position
                     schedule.splice(insertIndex, 0, movedTask);
-
                     localStorage.setItem('schedule', JSON.stringify(schedule));
                     renderTasks();
                 }
@@ -667,7 +1055,20 @@
 
         // Helper function to determine the closest task for reordering
         function getDragAfterElement(container, y) {
-            const draggableElements = [...container.querySelectorAll('li:not(.dragging)')];
+            const draggableElements = [...container.querySelectorAll('li.task:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                }
+                return closest;
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        // Helper function to determine the closest subtask for reordering
+        function getSubtaskAfterElement(container, y, parentIndex) {
+            const draggableElements = [...container.querySelectorAll(`li.subtask:not(.dragging)[data-parent-index="${parentIndex}"]`)];
             return draggableElements.reduce((closest, child) => {
                 const box = child.getBoundingClientRect();
                 const offset = y - box.top - box.height / 2;
@@ -700,7 +1101,7 @@
                 return;
             }
 
-            schedule.push({ start, end, task: taskName, section, completed: false });
+            schedule.push({ start, end, task: taskName, section, completed: false, subtasks: [] });
             localStorage.setItem('schedule', JSON.stringify(schedule));
             renderTasks();
             addTaskForm.reset();
@@ -715,11 +1116,11 @@
             schedule.forEach(task => {
                 if (!task.completed && currentTime >= task.start && currentTime < task.end) {
                     currentTask = task;
-                    task.element = document.querySelector(`li[data-start="${task.start}"][data-end="${task.end}"][data-task="${task.task}"]`);
+                    task.element = document.querySelector(`li.task[data-start="${task.start}"][data-end="${task.end}"][data-task="${task.task}"]`);
                 }
             });
 
-            document.querySelectorAll('li').forEach(li => li.classList.remove('active'));
+            document.querySelectorAll('li.task').forEach(li => li.classList.remove('active'));
 
             if (currentTask) {
                 currentTaskEl.textContent = `Current Task: ${currentTask.task}`;
@@ -763,4 +1164,3 @@
     </script>
 </body>
 </html>
-
