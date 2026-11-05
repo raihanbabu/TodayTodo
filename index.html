@@ -1,1169 +1,345 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Focus Work Schedule App</title>
-    <style>
-        :root {
-            --bg-color: #f5f6f5;
-            --container-bg: #ffffff;
-            --text-color: #2d2d2d;
-            --li-bg: #e8ecef;
-            --section-border: #d1d5db;
-            --active-bg: #90ee90;
-            --completed-bg: #f1f3f5;
-            --drag-over-bg: #d1d5db;
-            --subtask-bg: #f9fafb;
-        }
-        .dark-mode {
-            --bg-color: #1f2937;
-            --container-bg: #374151;
-            --text-color: #e5e7eb;
-            --li-bg: #4b5563;
-            --section-border: #6b7280;
-            --active-bg: #68d391;
-            --completed-bg: #2d3748;
-            --drag-over-bg: #6b7280;
-            --subtask-bg: #2d3748;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-        .container {
-            background: var(--container-bg);
-            padding: 24px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            max-width: 700px;
-            width: 100%;
-        }
-        h1 {
-            text-align: center;
-            font-size: 2em;
-            margin-bottom: 20px;
-        }
-        .section {
-            margin-bottom: 24px;
-        }
-        .section h2 {
-            border-bottom: 2px solid var(--section-border);
-            padding-bottom: 8px;
-            font-size: 1.5em;
-        }
-        ul {
-            list-style: none;
-            padding: 0;
-            min-height: 20px;
-        }
-        ul.drag-over:not(.subtask-list) {
-            background: var(--drag-over-bg);
-            border: 2px dashed var(--section-border);
-            border-radius: 8px;
-        }
-        ul.subtask-list.drag-over {
-            background: var(--drag-over-bg);
-            border: 1px dashed var(--section-border);
-            border-radius: 6px;
-        }
-        li.task, li.subtask {
-            padding: 12px;
-            margin: 8px 0;
-            background: var(--li-bg);
-            border-radius: 8px;
-            transition: background 0.3s, transform 0.2s;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: relative;
-            cursor: move;
-        }
-        li.subtask {
-            margin-left: 20px;
-            background: var(--subtask-bg);
-        }
-        li.task.dragging, li.subtask.dragging {
-            opacity: 0.5;
-            transform: scale(0.98);
-        }
-        li.task:hover, li.subtask:hover {
-            transform: scale(1.02);
-        }
-        li.task.active {
-            background: var(--active-bg);
-            font-weight: 600;
-        }
-        li.task.completed, li.subtask.completed {
-            text-decoration: line-through;
-            opacity: 0.7;
-            background: var(--completed-bg);
-        }
-        li.task:hover .edit-btn, li.task:hover .delete-btn, li.task:hover .complete-btn, li.task:hover .back-btn, li.task:hover .add-subtask-btn,
-        li.subtask:hover .edit-btn, li.subtask:hover .delete-btn, li.subtask:hover .complete-btn, li.subtask:hover .back-btn {
-            display: inline-block;
-        }
-        .subtask-list {
-            display: none;
-            margin-left: 20px;
-        }
-        .subtask-list.expanded {
-            display: block;
-        }
-        .toggle-subtasks {
-            cursor: pointer;
-            margin-right: 8px;
-            font-size: 0.9em;
-        }
-        .section-label {
-            font-size: 0.8em;
-            color: #6b7280;
-            margin-left: 8px;
-        }
-        .completed-timestamp {
-            font-size: 0.8em;
-            color: #6b7280;
-            margin-left: 8px;
-        }
-        #current-task {
-            text-align: center;
-            font-size: 1.3em;
-            margin-bottom: 12px;
-            color: #2563eb;
-        }
-        #timer {
-            text-align: center;
-            font-size: 1.2em;
-            margin-bottom: 12px;
-        }
-        button, input[type="submit"] {
-            margin: 12px auto;
-            padding: 10px 24px;
-            background: #2563eb;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background 0.3s, transform 0.2s;
-        }
-        button:hover, input[type="submit"]:hover {
-            background: #1e40af;
-            transform: scale(1.05);
-        }
-        form {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            justify-content: center;
-            margin-bottom: 24px;
-        }
-        input, select {
-            padding: 10px;
-            border: 1px solid var(--section-border);
-            border-radius: 6px;
-            font-size: 1em;
-        }
-        .delete-btn, .edit-btn, .complete-btn, .back-btn, .add-subtask-btn {
-            padding: 6px 12px;
-            font-size: 0.9em;
-            margin-left: 8px;
-        }
-        .delete-btn {
-            background: #ef4444;
-        }
-        .delete-btn:hover {
-            background: #b91c1c;
-        }
-        .edit-btn {
-            background: #2ecc71;
-            display: none;
-        }
-        .edit-btn:hover {
-            background: #27ae60;
-        }
-        .complete-btn {
-            background: #f59e0b;
-            display: none;
-        }
-        .complete-btn:hover {
-            background: #d97706;
-        }
-        .back-btn {
-            background: #8b5cf6;
-            display: none;
-        }
-        .back-btn:hover {
-            background: #7c3aed;
-        }
-        .add-subtask-btn {
-            background: #3b82f6;
-            display: none;
-        }
-        .add-subtask-btn:hover {
-            background: #2563eb;
-        }
-        .edit-form, .subtask-form {
-            display: none;
-            flex-direction: column;
-            gap: 12px;
-            padding: 12px;
-            background: var(--li-bg);
-            border-radius: 8px;
-            margin-top: 12px;
-        }
-        .subtask-form {
-            margin-left: 20px;
-        }
-        .notification-status-container {
-            display: flex;
-            justify-content: center;
-            flex-direction: column;
-            align-items: center;
-            margin-top: 10px;
-        }
-        .notification-status {
-            text-align: center;
-            font-size: 0.9em;
-            margin-top: 10px;
-        }
-        @media (max-width: 600px) {
-            .container {
-                padding: 16px;
-            }
-            h1 {
-                font-size: 1.6em;
-            }
-            li.task, li.subtask {
-                font-size: 0.9em;
-                padding: 10px;
-            }
-            .section-label, .completed-timestamp {
-                font-size: 0.7em;
-            }
-            #current-task, #timer {
-                font-size: 1.1em;
-            }
-            button, input, select {
-                padding: 8px;
-                font-size: 0.9em;
-            }
-            form, .edit-form, .subtask-form {
-                flex-direction: column;
-            }
-        }
-
-        /* Raihan Customize */
-        form#add-task-form input[type="submit"] {
-            margin: 10px 0;
-        }
-        #theme-toggle {
-            display: none;
-        }
-        button#reset-schedule {
-            display: flex;
-            margin-top: 100px;
-        }
-        li.task.active {padding: 12px;}
-
-        li.task, li.subtask {
-            padding: 0 12px;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#f6f8fc">
+<title>Focus — Daily Work Schedule</title>
+<style>
+:root{
+  color-scheme:light;
+  --bg:#f5f7fb;--surface:#fff;--surface-2:#f8faff;--text:#172033;
+  --muted:#748096;--line:#e7ebf2;--primary:#315efb;--primary-soft:#edf1ff;
+  --green:#16865b;--green-soft:#e8f7f0;--amber:#a86408;--amber-soft:#fff4df;
+  --red:#d84b4b;--shadow:0 14px 40px rgba(31,48,85,.07);--radius:18px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input,select{font:inherit}
+button{cursor:pointer}
+.app{width:min(1100px,calc(100% - 36px));margin:38px auto 60px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:26px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-mark{width:42px;height:42px;border-radius:13px;background:var(--primary);color:#fff;display:grid;place-items:center;font-size:21px;font-weight:800;box-shadow:0 8px 18px #315efb40}
+.brand h1{font-size:20px;letter-spacing:-.5px;margin:0}
+.brand p{margin:1px 0 0;color:var(--muted);font-size:12px}
+.top-actions{display:flex;gap:9px}
+.icon-btn,.secondary-btn{border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:11px;padding:9px 13px}
+.icon-btn{width:42px;height:42px;padding:0;font-size:17px}
+.hero{display:grid;grid-template-columns:1.35fr .85fr;gap:16px;margin-bottom:18px}
+.focus-card,.stats-card,.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.focus-card{padding:24px 26px;background:linear-gradient(125deg,#fff 0%,#f2f5ff 100%)}
+.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;font-weight:750;color:var(--primary)}
+.focus-card h2{font-size:22px;letter-spacing:-.6px;margin:8px 0 5px}
+#current-task{font-size:14px;color:#52617a;min-height:22px}
+.timer-row{display:flex;align-items:center;gap:12px;margin-top:18px}
+#timer{font-size:30px;font-weight:750;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+.timer-caption{font-size:12px;color:var(--muted)}
+.stats-card{padding:22px;display:flex;flex-direction:column;justify-content:center}
+.stat-head{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted)}
+#progress-count{font-weight:700;color:var(--text)}
+.progress-track{height:9px;background:#edf0f6;border-radius:20px;overflow:hidden;margin:13px 0 9px}
+#progress-fill{height:100%;width:0;background:var(--primary);border-radius:20px;transition:width .25s}
+.stats-foot{display:flex;justify-content:space-between;color:var(--muted);font-size:12px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:18px;align-items:start}
+.schedule{display:grid;gap:14px}
+.panel{padding:19px 20px}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.panel-head h3{font-size:15px;margin:0;letter-spacing:-.2px}
+.panel-head small{color:var(--muted);font-size:12px}
+.task-list{list-style:none;padding:0;margin:0;display:grid;gap:8px;min-height:8px}
+.task{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:13px;background:var(--surface);transition:.18s}
+.task:hover{border-color:#cbd5ff;transform:translateY(-1px)}
+.task.active{border-color:#9eafff;background:var(--primary-soft)}
+.task.completed{opacity:.68;background:var(--surface-2)}
+.check{width:21px;height:21px;flex:0 0 21px;border:1.7px solid #b9c2d2;border-radius:7px;background:transparent;color:#fff;padding:0;display:grid;place-items:center}
+.task.completed .check{background:var(--green);border-color:var(--green)}
+.task-main{min-width:0;flex:1}
+.task-title{font-size:13px;font-weight:650;overflow-wrap:anywhere}
+.task.completed .task-title{text-decoration:line-through}
+.task-meta{font-size:11px;color:var(--muted);margin-top:3px}
+.task-actions{display:flex;gap:4px;opacity:0;transition:.15s}
+.task:hover .task-actions,.task:focus-within .task-actions{opacity:1}
+.small-btn{border:0;background:transparent;color:var(--muted);padding:5px 7px;border-radius:7px;font-size:12px}
+.small-btn:hover{background:#edf1f8;color:var(--text)}
+.empty{padding:15px 8px;color:#9aa4b5;font-size:12px;text-align:center}
+.add-panel{position:sticky;top:18px}
+.add-panel h3{font-size:16px;margin:0 0 4px}
+.add-panel>p{font-size:12px;color:var(--muted);margin:0 0 18px}
+.field{display:grid;gap:6px;margin-bottom:12px}
+.field label{font-size:11px;font-weight:700;color:#647087}
+.field input,.field select{width:100%;border:1px solid var(--line);background:var(--surface-2);border-radius:10px;padding:10px 11px;color:var(--text);outline:none}
+.field input:focus,.field select:focus{border-color:#8ea2ff;box-shadow:0 0 0 3px #315efb15}
+.time-fields{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.primary-btn{width:100%;border:0;border-radius:10px;background:var(--primary);color:#fff;font-weight:700;padding:11px 14px;box-shadow:0 7px 15px #315efb25}
+.primary-btn:hover{background:#244de0}
+.form-message{min-height:17px;font-size:11px;color:var(--red);margin-top:7px}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.tools button{flex:1;font-size:11px}
+.subtasks{display:none;padding:0 0 0 34px;margin:8px 0 0;list-style:none}
+.subtasks.open{display:grid;gap:6px}
+.subtask{display:flex;align-items:center;gap:8px;font-size:12px;color:#58657a}
+.subtask button{border:0;background:none;color:var(--muted);padding:3px}
+.subtask.done span{text-decoration:line-through;opacity:.6}
+.subtask-add{display:flex;gap:6px;margin:8px 0 0 34px}
+.subtask-add input{min-width:0;flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12px}
+.subtask-add button{border:0;background:var(--primary-soft);color:var(--primary);border-radius:8px;padding:6px 10px}
+.completed-panel{margin-top:14px}
+.task-warn{color:var(--amber);font-weight:650}
+body.dark .task-warn{color:#f0b35a}
+.notice{color:var(--muted);font-size:11px;margin-top:18px;text-align:center}
+@media(max-width:800px){.layout{grid-template-columns:1fr}.add-panel{position:static}.hero{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.app{width:calc(100% - 22px);margin:20px auto 40px}.topbar{align-items:flex-start}.hero{grid-template-columns:1fr}.focus-card{padding:20px}.panel{padding:15px}.task{padding:10px}.task-actions{opacity:1}.task-actions .small-btn{padding:5px}.brand p{font-size:11px}}
+body.dark{color-scheme:dark;--bg:#101827;--surface:#182337;--surface-2:#1d2a40;--text:#e8edf7;--muted:#9aa8bd;--line:#2b3a52;--primary:#7892ff;--primary-soft:#25345b;--green-soft:#183c32;--amber-soft:#47351c;--shadow:0 14px 40px #0003}
+body.dark .focus-card{background:linear-gradient(125deg,#182337,#202e4b)}
+body.dark .task.active{background:#25345b;border-color:#536dc7}
+body.dark .progress-track{background:#2b3a52}
+body.dark .small-btn:hover{background:#2a3951}
+body.dark .field input,body.dark .field select{background:#1d2a40}
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>Focus Work Schedule</h1>
-        <div id="current-task" aria-live="polite">Current Task: None</div>
-        <div id="timer" aria-live="polite">Time Left: --</div>
-        <button id="theme-toggle" aria-label="Toggle dark mode">Toggle Dark Mode</button>
-        <div class="section">
-            <h2>Add Task</h2>
-            <form id="add-task-form">
-                <input type="time" id="start-time" required aria-label="Start time">
-                <input type="time" id="end-time" required aria-label="End time">
-                <input type="text" id="task-name" placeholder="Task name" required aria-label="Task name">
-                <select id="section" aria-label="Schedule section">
-                    <option value="morning" title="Morning tasks">Morning</option>
-                    <option value="noon" title="Noon tasks">Noon</option>
-                    <option value="evening" title="Evening tasks">Evening</option>
-                    <option value="important_urgent" title="Crises">Important, urgent</option>
-                    <option value="important_not_urgent" title="Goals & Planning">Important but not urgent</option>
-                    <option value="not_important_urgent" title="Interruptions">Not Important, urgent</option>
-                    <option value="neither_urgent_nor_important" title="Distractions">Neither urgent nor important</option>
-                </select>
-                <input type="submit" value="Add Task">
-            </form>
-        </div>
-        <div class="section morning">
-            <h2>Morning</h2>
-            <ul id="morning-tasks" data-section="morning"></ul>
-        </div>
-        <div class="section noon">
-            <h2>Noon</h2>
-            <ul id="noon-tasks" data-section="noon"></ul>
-        </div>
-        <div class="section evening">
-            <h2>Evening</h2>
-            <ul id="evening-tasks" data-section="evening"></ul>
-        </div>
-        <div class="section important_urgent">
-            <h2>Important & Urgent</h2>
-            <ul id="important-urgent-tasks" data-section="important_urgent"></ul>
-        </div>
-        <div class="section important_not_urgent">
-            <h2 style="opacity: 0.6;">Important but not urgent</h2>
-            <ul id="important-not-urgent-tasks" data-section="important_not_urgent"></ul>
-        </div>
-        <div class="section not_important_urgent">
-            <h2 style="opacity: 0.8;">Not Important, urgent</h2>
-            <ul id="not-important-urgent-tasks" data-section="not_important_urgent"></ul>
-        </div>
-        <div class="section neither_urgent_nor_important">
-            <h2 style="opacity: 0.8;">Neither urgent or important</h2>
-            <ul id="neither-urgent-nor-important-tasks" data-section="neither_urgent_nor_important"></ul>
-        </div>
-        <div class="section completed">
-            <h2>Completed Tasks</h2>
-            <ul id="completed-tasks" data-section="completed"></ul>
-            <button id="clear-completed" aria-label="Clear all completed tasks" style="display: none;">Clear Completed Tasks</button>
-            <button id="reset-schedule" aria-label="Reset schedule to default">Reset Schedule</button>
-        </div>
-        <div class="notification-status-container">
-            <button id="toggle-notifications" aria-label="Toggle notifications">Enable Notifications</button>
-            <div id="notification-status" class="notification-status" aria-live="polite">Notifications: Disabled</div>
-        </div>
+<main class="app">
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">F</div><div><h1>Focus</h1><p>Your day, with intention.</p></div></div>
+    <div class="top-actions">
+      <button class="secondary-btn" id="notify-btn" type="button">Enable alerts</button>
+      <button class="icon-btn" id="theme-btn" type="button" aria-label="Toggle theme">☾</button>
     </div>
-    <audio id="alert-sound" src="alert.mp3"></audio>
-    <script>
-        // Default schedule with tasks in new categories, including subtasks
-        const defaultSchedule = [
-            { start: "06:00", end: "07:00", task: "Theory: English", section: "morning", completed: false, subtasks: [] },
-            { start: "07:00", end: "08:00", task: "Analysis: Questions Bank", section: "morning", completed: false, subtasks: [] },
-            { start: "08:00", end: "09:00", task: "Practice: Model Test", section: "morning", completed: false, subtasks: [] },
-            { start: "09:00", end: "10:00", task: "Revision", section: "morning", completed: false, subtasks: [] },
-
-            { start: "11:00", end: "12:00", task: "Find Client: Old Clients, Marketplace, Linkedin & WordPress/Hubspot", section: "noon", completed: false, subtasks: [] },
-            { start: "12:00", end: "13:00", task: "ShofolJOB Website", section: "noon", completed: false, subtasks: [] },
-            { start: "13:00", end: "14:00", task: "ShofolJOB Website", section: "noon", completed: false, subtasks: [] },
-
-            { start: "18:00", end: "19:00", task: "Ntrca: Written", section: "evening", completed: false, subtasks: [] },
-            { start: "19:00", end: "20:00", task: "Ntrca: Written", section: "evening", completed: false, subtasks: [] }
-        ];
-
-        // Load tasks from localStorage or use default schedule
-        let schedule = JSON.parse(localStorage.getItem('schedule')) || defaultSchedule;
-
-        // DOM elements
-        const currentTaskEl = document.getElementById('current-task');
-        const timerEl = document.getElementById('timer');
-        const morningTasksEl = document.getElementById('morning-tasks');
-        const noonTasksEl = document.getElementById('noon-tasks');
-        const eveningTasksEl = document.getElementById('evening-tasks');
-        const importantUrgentTasksEl = document.getElementById('important-urgent-tasks');
-        const importantNotUrgentTasksEl = document.getElementById('important-not-urgent-tasks');
-        const notImportantUrgentTasksEl = document.getElementById('not-important-urgent-tasks');
-        const neitherUrgentNorImportantTasksEl = document.getElementById('neither-urgent-nor-important-tasks');
-        const completedTasksEl = document.getElementById('completed-tasks');
-        const addTaskForm = document.getElementById('add-task-form');
-        const themeToggle = document.getElementById('theme-toggle');
-        const toggleNotifications = document.getElementById('toggle-notifications');
-        const notificationStatus = document.getElementById('notification-status');
-        const clearCompleted = document.getElementById('clear-completed');
-        const resetSchedule = document.getElementById('reset-schedule');
-        const alertSound = document.getElementById('alert-sound');
-
-        // Notification state
-        let notificationsEnabled = localStorage.getItem('notificationsEnabled') === 'true';
-        updateNotificationStatus();
-
-        // Dark mode toggle
-        themeToggle.addEventListener('click', () => {
-            document.body.classList.toggle('dark-mode');
-            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
-            renderTasks();
-        });
-
-        // Load dark mode preference
-        if (localStorage.getItem('darkMode') === 'true') {
-            document.body.classList.add('dark-mode');
-        }
-
-        // Notification toggle
-        function updateNotificationStatus() {
-            if (notificationsEnabled && Notification.permission === 'granted') {
-                notificationStatus.textContent = 'Notifications: Enabled';
-                toggleNotifications.textContent = 'Disable Notifications';
-            } else {
-                notificationStatus.textContent = 'Notifications: Disabled';
-                toggleNotifications.textContent = 'Enable Notifications';
-            }
-        }
-
-        toggleNotifications.addEventListener('click', () => {
-            if (!notificationsEnabled) {
-                Notification.requestPermission().then(permission => {
-                    notificationsEnabled = permission === 'granted';
-                    localStorage.setItem('notificationsEnabled', notificationsEnabled);
-                    updateNotificationStatus();
-                });
-            } else {
-                notificationsEnabled = false;
-                localStorage.setItem('notificationsEnabled', notificationsEnabled);
-                updateNotificationStatus();
-            }
-        });
-
-        // Reset schedule
-        resetSchedule.addEventListener('click', () => {
-            if (confirm('Are you sure you want to reset the schedule to default? This will clear all tasks.')) {
-                schedule = [...defaultSchedule];
-                localStorage.setItem('schedule', JSON.stringify(schedule));
-                renderTasks();
-            }
-        });
-
-        // Format time to 12-hour format
-        function formatTime(time) {
-            const [hours, minutes] = time.split(':').map(Number);
-            const period = hours >= 12 ? 'PM' : 'AM';
-            const formattedHours = hours % 12 || 12;
-            return `${formattedHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}${period}`;
-        }
-
-        // Format timestamp to readable date
-        function formatTimestamp(timestamp) {
-            if (!timestamp) return '';
-            const date = new Date(timestamp);
-            return `Completed: ${date.toLocaleString()}`;
-        }
-
-        // Render tasks
-        function renderTasks() {
-            morningTasksEl.innerHTML = '';
-            noonTasksEl.innerHTML = '';
-            eveningTasksEl.innerHTML = '';
-            importantUrgentTasksEl.innerHTML = '';
-            importantNotUrgentTasksEl.innerHTML = '';
-            notImportantUrgentTasksEl.innerHTML = '';
-            neitherUrgentNorImportantTasksEl.innerHTML = '';
-            completedTasksEl.innerHTML = '';
-
-            // Create a map of tasks with their original indices
-            const taskIndices = new Map();
-            schedule.forEach((task, index) => taskIndices.set(task, index));
-
-            // Sort active and completed tasks
-            const activeTasks = schedule.filter(task => !task.completed);
-            const completedTasks = schedule.filter(task => task.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
-
-            // Section name mapping for display
-            const sectionNames = {
-                morning: 'Morning',
-                noon: 'Noon',
-                evening: 'Evening',
-                important_urgent: 'Crises',
-                important_not_urgent: 'Goals & Planning',
-                not_important_urgent: 'Interruptions',
-                neither_urgent_nor_important: 'Distractions',
-                completed: 'Completed'
-            };
-
-            // Render active tasks
-            activeTasks.forEach((task) => {
-                const index = taskIndices.get(task);
-                const li = document.createElement('li');
-                li.classList.add('task');
-                li.draggable = true;
-                li.dataset.start = task.start;
-                li.dataset.end = task.end;
-                li.dataset.task = task.task;
-                li.dataset.section = task.section;
-                li.dataset.index = index;
-                li.setAttribute('aria-grabbed', 'false');
-                li.setAttribute('role', 'listitem');
-                li.innerHTML = `
-                    <span class="toggle-subtasks" aria-label="Toggle subtasks for ${task.task}">${task.subtasks && task.subtasks.length > 0 ? '▼' : '◄'}</span>
-                    ${formatTime(task.start)} - ${formatTime(task.end)} - ${task.task}
-                   <!-- <span class="section-label">[${sectionNames[task.section]}]</span> -->
-                    <div>
-                        <button class="complete-btn" aria-label="Complete task ${task.task}">Complete</button>
-                        <button class="edit-btn" aria-label="Edit task ${task.task}">Edit</button>
-                        <button class="delete-btn" aria-label="Delete task ${task.task}">Delete</button>
-                        <button class="add-subtask-btn" aria-label="Add subtask to ${task.task}">Add Subtask</button>
-                    </div>
-                `;
-                const editForm = document.createElement('form');
-                editForm.classList.add('edit-form');
-                editForm.innerHTML = `
-                    <input type="time" name="edit-start" value="${task.start}" required aria-label="Edit start time">
-                    <input type="time" name="edit-end" value="${task.end}" required aria-label="Edit end time">
-                    <input type="text" name="edit-task" value="${task.task}" required aria-label="Edit task name">
-                    <select name="edit-section" aria-label="Edit schedule section">
-                        <option value="morning" title="Morning tasks" ${task.section === 'morning' ? 'selected' : ''}>Morning</option>
-                        <option value="noon" title="Noon tasks" ${task.section === 'noon' ? 'selected' : ''}>Noon</option>
-                        <option value="evening" title="Evening tasks" ${task.section === 'evening' ? 'selected' : ''}>Evening</option>
-                        <option value="important_urgent" title="Crises" ${task.section === 'important_urgent' ? 'selected' : ''}>Important, urgent</option>
-                        <option value="important_not_urgent" title="Goals & Planning" ${task.section === 'important_not_urgent' ? 'selected' : ''}>Important but not urgent</option>
-                        <option value="not_important_urgent" title="Interruptions" ${task.section === 'not_important_urgent' ? 'selected' : ''}>Not Important, urgent</option>
-                        <option value="neither_urgent_nor_important" title="Distractions" ${task.section === 'neither_urgent_nor_important' ? 'selected' : ''}>Neither urgent nor important</option>
-                    </select>
-                    <input type="submit" value="Save">
-                    <button type="button" class="cancel-edit" aria-label="Cancel edit">Cancel</button>
-                `;
-                const subtaskForm = document.createElement('form');
-                subtaskForm.classList.add('subtask-form');
-                subtaskForm.innerHTML = `
-                    <input type="text" name="subtask-description" placeholder="Subtask name" required aria-label="Subtask name">
-                    <input type="submit" value="Add Subtask">
-                    <button type="button" class="cancel-subtask" aria-label="Cancel adding subtask">Cancel</button>
-                `;
-                const subtaskList = document.createElement('ul');
-                subtaskList.classList.add('subtask-list');
-                subtaskList.dataset.parentIndex = index;
-                if (task.subtasks && task.subtasks.length > 0) {
-                    subtaskList.classList.add('expanded');
-                }
-
-                // Render subtasks
-                (task.subtasks || []).forEach((subtask, subtaskIndex) => {
-                    const subtaskLi = document.createElement('li');
-                    subtaskLi.classList.add('subtask');
-                    if (subtask.completed) subtaskLi.classList.add('completed');
-                    subtaskLi.draggable = true;
-                    subtaskLi.dataset.task = subtask.task;
-                    subtaskLi.dataset.parentIndex = index;
-                    subtaskLi.dataset.subtaskIndex = subtaskIndex;
-                    subtaskLi.setAttribute('aria-grabbed', 'false');
-                    subtaskLi.setAttribute('role', 'listitem');
-                    subtaskLi.innerHTML = `
-                        ${subtask.task}
-                        <div>
-                            ${subtask.completed
-                                ? `<button class="back-btn" aria-label="Move subtask ${subtask.task} back to active">Back</button>`
-                                : `<button class="complete-btn" aria-label="Complete subtask ${subtask.task}">Complete</button>`}
-                            <button class="edit-btn" aria-label="Edit subtask ${subtask.task}">Edit</button>
-                            <button class="delete-btn" aria-label="Delete subtask ${subtask.task}">Delete</button>
-                        </div>
-                    `;
-                    const subtaskEditForm = document.createElement('form');
-                    subtaskEditForm.classList.add('subtask-form');
-                    subtaskEditForm.style.display = 'none';
-                    subtaskEditForm.innerHTML = `
-                        <input type="text" name="edit-subtask-task" value="${subtask.task}" required aria-label="Edit subtask name">
-                        <input type="submit" value="Save">
-                        <button type="button" class="cancel-edit-subtask" aria-label="Cancel editing subtask">Cancel</button>
-                    `;
-                    subtaskList.appendChild(subtaskLi);
-                    subtaskList.appendChild(subtaskEditForm);
-
-                    // Drag start for subtask
-                    subtaskLi.addEventListener('dragstart', (e) => {
-                        subtaskLi.classList.add('dragging');
-                        subtaskLi.setAttribute('aria-grabbed', 'true');
-                        e.dataTransfer.setData('text/plain', `${index}:${subtaskIndex}`);
-                    });
-
-                    // Drag end for subtask
-                    subtaskLi.addEventListener('dragend', () => {
-                        subtaskLi.classList.remove('dragging');
-                        subtaskLi.setAttribute('aria-grabbed', 'false');
-                        document.querySelectorAll('ul').forEach(ul => ul.classList.remove('drag-over'));
-                    });
-
-                    // Complete or move back subtask
-                    if (subtask.completed) {
-                        subtaskLi.querySelector('.back-btn').addEventListener('click', () => {
-                            schedule[index].subtasks[subtaskIndex].completed = false;
-                            localStorage.setItem('schedule', JSON.stringify(schedule));
-                            renderTasks();
-                        });
-                    } else {
-                        subtaskLi.querySelector('.complete-btn').addEventListener('click', () => {
-                            schedule[index].subtasks[subtaskIndex].completed = true;
-                            localStorage.setItem('schedule', JSON.stringify(schedule));
-                            renderTasks();
-                        });
-                    }
-
-                    // Edit subtask
-                    subtaskLi.querySelector('.edit-btn').addEventListener('click', () => {
-                        subtaskEditForm.style.display = 'flex';
-                        subtaskLi.style.display = 'none';
-                    });
-
-                    // Save edited subtask
-                    subtaskEditForm.addEventListener('submit', (e) => {
-                        e.preventDefault();
-                        const newTask = subtaskEditForm.querySelector('[name="edit-subtask-task"]').value;
-                        schedule[index].subtasks[subtaskIndex] = {
-                            task: newTask,
-                            completed: schedule[index].subtasks[subtaskIndex].completed
-                        };
-                        localStorage.setItem('schedule', JSON.stringify(schedule));
-                        renderTasks();
-                    });
-
-                    // Cancel edit subtask
-                    subtaskEditForm.querySelector('.cancel-edit-subtask').addEventListener('click', () => {
-                        subtaskEditForm.style.display = 'none';
-                        subtaskLi.style.display = 'flex';
-                    });
-
-                    // Delete subtask
-                    subtaskLi.querySelector('.delete-btn').addEventListener('click', () => {
-                        schedule[index].subtasks.splice(subtaskIndex, 1);
-                        localStorage.setItem('schedule', JSON.stringify(schedule));
-                        renderTasks();
-                    });
-                });
-
-                const targetList = {
-                    morning: morningTasksEl,
-                    noon: noonTasksEl,
-                    evening: eveningTasksEl,
-                    important_urgent: importantUrgentTasksEl,
-                    important_not_urgent: importantNotUrgentTasksEl,
-                    not_important_urgent: notImportantUrgentTasksEl,
-                    neither_urgent_nor_important: neitherUrgentNorImportantTasksEl
-                }[task.section];
-
-                targetList.appendChild(li);
-                targetList.appendChild(editForm);
-                targetList.appendChild(subtaskForm);
-                targetList.appendChild(subtaskList);
-
-                // Toggle subtasks
-                li.querySelector('.toggle-subtasks').addEventListener('click', () => {
-                    const isExpanded = subtaskList.classList.toggle('expanded');
-                    li.querySelector('.toggle-subtasks').textContent = isExpanded ? '▼' : '◄';
-                    li.querySelector('.toggle-subtasks').setAttribute('aria-expanded', isExpanded);
-                });
-
-                // Add subtask
-                li.querySelector('.add-subtask-btn').addEventListener('click', () => {
-                    subtaskForm.style.display = 'flex';
-                    li.style.display = 'none';
-                });
-
-                // Save new subtask
-                subtaskForm.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    const description = subtaskForm.querySelector('[name="subtask-description"]').value;
-                    if (!schedule[index].subtasks) schedule[index].subtasks = [];
-                    schedule[index].subtasks.push({ task: description, completed: false });
-                    localStorage.setItem('schedule', JSON.stringify(schedule));
-                    renderTasks();
-                });
-
-                // Cancel add subtask
-                subtaskForm.querySelector('.cancel-subtask').addEventListener('click', () => {
-                    subtaskForm.style.display = 'none';
-                    li.style.display = 'flex';
-                });
-
-                // Drag start for task
-                li.addEventListener('dragstart', (e) => {
-                    li.classList.add('dragging');
-                    li.setAttribute('aria-grabbed', 'true');
-                    e.dataTransfer.setData('text/plain', `${index}:`);
-                });
-
-                // Drag end for task
-                li.addEventListener('dragend', () => {
-                    li.classList.remove('dragging');
-                    li.setAttribute('aria-grabbed', 'false');
-                    document.querySelectorAll('ul').forEach(ul => ul.classList.remove('drag-over'));
-                });
-
-                // Complete task
-                li.querySelector('.complete-btn').addEventListener('click', () => {
-                    schedule[index].completed = true;
-                    schedule[index].completedAt = Date.now();
-                    localStorage.setItem('schedule', JSON.stringify(schedule));
-                    renderTasks();
-                });
-
-                // Delete task
-                li.querySelector('.delete-btn').addEventListener('click', () => {
-                    schedule.splice(index, 1);
-                    localStorage.setItem('schedule', JSON.stringify(schedule));
-                    renderTasks();
-                });
-
-                // Edit task
-                li.querySelector('.edit-btn').addEventListener('click', () => {
-                    editForm.style.display = 'flex';
-                    li.style.display = 'none';
-                });
-
-                // Save edited task
-                editForm.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    const newStart = editForm.querySelector('[name="edit-start"]').value;
-                    const newEnd = editForm.querySelector('[name="edit-end"]').value;
-                    const newTask = editForm.querySelector('[name="edit-task"]').value;
-                    const newSection = editForm.querySelector('[name="edit-section"]').value;
-
-                    if (newStart >= newEnd) {
-                        alert('End time must be after start time.');
-                        return;
-                    }
-
-                    schedule[index] = { start: newStart, end: newEnd, task: newTask, section: newSection, completed: schedule[index].completed, completedAt: schedule[index].completedAt, subtasks: schedule[index].subtasks };
-                    localStorage.setItem('schedule', JSON.stringify(schedule));
-                    renderTasks();
-                });
-
-                // Cancel edit
-                editForm.querySelector('.cancel-edit').addEventListener('click', () => {
-                    editForm.style.display = 'none';
-                    li.style.display = 'flex';
-                });
-            });
-
-            // Render completed tasks
-            completedTasks.forEach((task) => {
-                const index = taskIndices.get(task);
-                const li = document.createElement('li');
-                li.classList.add('task', 'completed');
-                li.draggable = true;
-                li.dataset.start = task.start;
-                li.dataset.end = task.end;
-                li.dataset.task = task.task;
-                li.dataset.section = task.section;
-                li.dataset.index = index;
-                li.setAttribute('aria-grabbed', 'false');
-                li.setAttribute('role', 'listitem');
-                li.innerHTML = `
-                    <span class="toggle-subtasks" aria-label="Toggle subtasks for ${task.task}">${task.subtasks && task.subtasks.length > 0 ? '▼' : '◄'}</span>
-                    ${formatTime(task.start)} - ${formatTime(task.end)} - ${task.task}
-                    <!-- <span class="section-label">[${sectionNames[task.section]}]</span>  -->
-                    <span class="completed-timestamp">${formatTimestamp(task.completedAt)}</span>
-                    <div>
-                        <button class="back-btn" aria-label="Move task ${task.task} back to active">Back</button>
-                        <button class="edit-btn" aria-label="Edit task ${task.task}">Edit</button>
-                        <button class="delete-btn" aria-label="Delete task ${task.task}">Delete</button>
-                        <button class="add-subtask-btn" aria-label="Add subtask to ${task.task}">Add Subtask</button>
-                    </div>
-                `;
-                const editForm = document.createElement('form');
-                editForm.classList.add('edit-form');
-                editForm.innerHTML = `
-                    <input type="time" name="edit-start" value="${task.start}" required aria-label="Edit start time">
-                    <input type="time" name="edit-end" value="${task.end}" required aria-label="Edit end time">
-                    <input type="text" name="edit-task" value="${task.task}" required aria-label="Edit task name">
-                    <select name="edit-section" aria-label="Edit schedule section">
-                        <option value="morning" title="Morning tasks" ${task.section === 'morning' ? 'selected' : ''}>Morning</option>
-                        <option value="noon" title="Noon tasks" ${task.section === 'noon' ? 'selected' : ''}>Noon</option>
-                        <option value="evening" title="Evening tasks" ${task.section === 'evening' ? 'selected' : ''}>Evening</option>
-                        <option value="important_urgent" title="Crises" ${task.section === 'important_urgent' ? 'selected' : ''}>Important, urgent</option>
-                        <option value="important_not_urgent" title="Goals & Planning" ${task.section === 'important_not_urgent' ? 'selected' : ''}>Important but not urgent</option>
-                        <option value="not_important_urgent" title="Interruptions" ${task.section === 'not_important_urgent' ? 'selected' : ''}>Not Important, urgent</option>
-                        <option value="neither_urgent_nor_important" title="Distractions" ${task.section === 'neither_urgent_nor_important' ? 'selected' : ''}>Neither urgent nor important</option>
-                    </select>
-                    <input type="submit" value="Save">
-                    <button type="button" class="cancel-edit" aria-label="Cancel edit">Cancel</button>
-                `;
-                const subtaskForm = document.createElement('form');
-                subtaskForm.classList.add('subtask-form');
-                subtaskForm.innerHTML = `
-                    <input type="text" name="subtask-description" placeholder="Subtask name" required aria-label="Subtask name">
-                    <input type="submit" value="Add Subtask">
-                    <button type="button" class="cancel-subtask" aria-label="Cancel adding subtask">Cancel</button>
-                `;
-                const subtaskList = document.createElement('ul');
-                subtaskList.classList.add('subtask-list');
-                subtaskList.dataset.parentIndex = index;
-                if (task.subtasks && task.subtasks.length > 0) {
-                    subtaskList.classList.add('expanded');
-                }
-
-                // Render subtasks
-                (task.subtasks || []).forEach((subtask, subtaskIndex) => {
-                    const subtaskLi = document.createElement('li');
-                    subtaskLi.classList.add('subtask');
-                    if (subtask.completed) subtaskLi.classList.add('completed');
-                    subtaskLi.draggable = true;
-                    subtaskLi.dataset.task = subtask.task;
-                    subtaskLi.dataset.parentIndex = index;
-                    subtaskLi.dataset.subtaskIndex = subtaskIndex;
-                    subtaskLi.setAttribute('aria-grabbed', 'false');
-                    subtaskLi.setAttribute('role', 'listitem');
-                    subtaskLi.innerHTML = `
-                        ${subtask.task}
-                        <div>
-                            ${subtask.completed
-                                ? `<button class="back-btn" aria-label="Move subtask ${subtask.task} back to active">Back</button>`
-                                : `<button class="complete-btn" aria-label="Complete subtask ${subtask.task}">Complete</button>`}
-                            <button class="edit-btn" aria-label="Edit subtask ${subtask.task}">Edit</button>
-                            <button class="delete-btn" aria-label="Delete subtask ${subtask.task}">Delete</button>
-                        </div>
-                    `;
-                    const subtaskEditForm = document.createElement('form');
-                    subtaskEditForm.classList.add('subtask-form');
-                    subtaskEditForm.style.display = 'none';
-                    subtaskEditForm.innerHTML = `
-                        <input type="text" name="edit-subtask-task" value="${subtask.task}" required aria-label="Edit subtask name">
-                        <input type="submit" value="Save">
-                        <button type="button" class="cancel-edit-subtask" aria-label="Cancel editing subtask">Cancel</button>
-                    `;
-                    subtaskList.appendChild(subtaskLi);
-                    subtaskList.appendChild(subtaskEditForm);
-
-                    // Drag start for subtask
-                    subtaskLi.addEventListener('dragstart', (e) => {
-                        subtaskLi.classList.add('dragging');
-                        subtaskLi.setAttribute('aria-grabbed', 'true');
-                        e.dataTransfer.setData('text/plain', `${index}:${subtaskIndex}`);
-                    });
-
-                    // Drag end for subtask
-                    subtaskLi.addEventListener('dragend', () => {
-                        subtaskLi.classList.remove('dragging');
-                        subtaskLi.setAttribute('aria-grabbed', 'false');
-                        document.querySelectorAll('ul').forEach(ul => ul.classList.remove('drag-over'));
-                    });
-
-                    // Complete or move back subtask
-                    if (subtask.completed) {
-                        subtaskLi.querySelector('.back-btn').addEventListener('click', () => {
-                            schedule[index].subtasks[subtaskIndex].completed = false;
-                            localStorage.setItem('schedule', JSON.stringify(schedule));
-                            renderTasks();
-                        });
-                    } else {
-                        subtaskLi.querySelector('.complete-btn').addEventListener('click', () => {
-                            schedule[index].subtasks[subtaskIndex].completed = true;
-                            localStorage.setItem('schedule', JSON.stringify(schedule));
-                            renderTasks();
-                        });
-                    }
-
-                    // Edit subtask
-                    subtaskLi.querySelector('.edit-btn').addEventListener('click', () => {
-                        subtaskEditForm.style.display = 'flex';
-                        subtaskLi.style.display = 'none';
-                    });
-
-                    // Save edited subtask
-                    subtaskEditForm.addEventListener('submit', (e) => {
-                        e.preventDefault();
-                        const newTask = subtaskEditForm.querySelector('[name="edit-subtask-task"]').value;
-                        schedule[index].subtasks[subtaskIndex] = {
-                            task: newTask,
-                            completed: schedule[index].subtasks[subtaskIndex].completed
-                        };
-                        localStorage.setItem('schedule', JSON.stringify(schedule));
-                        renderTasks();
-                    });
-
-                    // Cancel edit subtask
-                    subtaskEditForm.querySelector('.cancel-edit-subtask').addEventListener('click', () => {
-                        subtaskEditForm.style.display = 'none';
-                        subtaskLi.style.display = 'flex';
-                    });
-
-                    // Delete subtask
-                    subtaskLi.querySelector('.delete-btn').addEventListener('click', () => {
-                        schedule[index].subtasks.splice(subtaskIndex, 1);
-                        localStorage.setItem('schedule', JSON.stringify(schedule));
-                        renderTasks();
-                    });
-                });
-
-                completedTasksEl.appendChild(li);
-                completedTasksEl.appendChild(editForm);
-                completedTasksEl.appendChild(subtaskForm);
-                completedTasksEl.appendChild(subtaskList);
-
-                // Toggle subtasks
-                li.querySelector('.toggle-subtasks').addEventListener('click', () => {
-                    const isExpanded = subtaskList.classList.toggle('expanded');
-                    li.querySelector('.toggle-subtasks').textContent = isExpanded ? '▼' : '◄';
-                    li.querySelector('.toggle-subtasks').setAttribute('aria-expanded', isExpanded);
-                });
-
-                // Add subtask
-                li.querySelector('.add-subtask-btn').addEventListener('click', () => {
-                    subtaskForm.style.display = 'flex';
-                    li.style.display = 'none';
-                });
-
-                // Save new subtask
-                subtaskForm.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    const description = subtaskForm.querySelector('[name="subtask-description"]').value;
-                    if (!schedule[index].subtasks) schedule[index].subtasks = [];
-                    schedule[index].subtasks.push({ task: description, completed: false });
-                    localStorage.setItem('schedule', JSON.stringify(schedule));
-                    renderTasks();
-                });
-
-                // Cancel add subtask
-                subtaskForm.querySelector('.cancel-subtask').addEventListener('click', () => {
-                    subtaskForm.style.display = 'none';
-                    li.style.display = 'flex';
-                });
-
-                // Move back to active
-                li.querySelector('.back-btn').addEventListener('click', () => {
-                    schedule[index].completed = false;
-                    delete schedule[index].completedAt;
-                    localStorage.setItem('schedule', JSON.stringify(schedule));
-                    renderTasks();
-                });
-
-                // Delete completed task
-                li.querySelector('.delete-btn').addEventListener('click', () => {
-                    schedule.splice(index, 1);
-                    localStorage.setItem('schedule', JSON.stringify(schedule));
-                    renderTasks();
-                });
-
-                // Edit completed task
-                li.querySelector('.edit-btn').addEventListener('click', () => {
-                    editForm.style.display = 'flex';
-                    li.style.display = 'none';
-                });
-
-                // Save edited completed task
-                editForm.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    const newStart = editForm.querySelector('[name="edit-start"]').value;
-                    const newEnd = editForm.querySelector('[name="edit-end"]').value;
-                    const newTask = editForm.querySelector('[name="edit-task"]').value;
-                    const newSection = editForm.querySelector('[name="edit-section"]').value;
-
-                    if (newStart >= newEnd) {
-                        alert('End time must be after start time.');
-                        return;
-                    }
-
-                    schedule[index] = { start: newStart, end: newEnd, task: newTask, section: newSection, completed: schedule[index].completed, completedAt: schedule[index].completedAt, subtasks: schedule[index].subtasks };
-                    localStorage.setItem('schedule', JSON.stringify(schedule));
-                    renderTasks();
-                });
-
-                // Cancel edit
-                editForm.querySelector('.cancel-edit').addEventListener('click', () => {
-                    editForm.style.display = 'none';
-                    li.style.display = 'flex';
-                });
-            });
-
-            // Show/hide clear completed button
-            clearCompleted.style.display = completedTasks.length > 0 ? 'block' : 'none';
-        }
-
-        // Drag-and-drop handlers
-        const dropZones = document.querySelectorAll('ul');
-        dropZones.forEach(zone => {
-            zone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                const dragging = document.querySelector('.dragging');
-                if (dragging.classList.contains('subtask') && !zone.classList.contains('subtask-list')) {
-                    // Allow subtasks to be dropped only in section lists for moving parent task
-                    if (zone.dataset.section) {
-                        zone.classList.add('drag-over');
-                    }
-                } else if (dragging.classList.contains('subtask') && zone.classList.contains('subtask-list') && zone.dataset.parentIndex === dragging.dataset.parentIndex) {
-                    // Allow subtasks to be dropped in their own subtask-list for reordering
-                    zone.classList.add('drag-over');
-                } else if (dragging.classList.contains('task') && !zone.classList.contains('subtask-list')) {
-                    // Allow tasks to be dropped in section lists
-                    zone.classList.add('drag-over');
-                }
-            });
-
-            zone.addEventListener('dragleave', () => {
-                zone.classList.remove('drag-over');
-            });
-
-            zone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                zone.classList.remove('drag-over');
-                const data = e.dataTransfer.getData('text/plain').split(':');
-                const index = parseInt(data[0], 10);
-                const subtaskIndex = data[1] ? parseInt(data[1], 10) : null;
-                const newSection = zone.dataset.section;
-                const parentIndex = parseInt(zone.dataset.parentIndex, 10);
-
-                if (subtaskIndex !== null && index >= 0 && index < schedule.length && subtaskIndex >= 0 && subtaskIndex < schedule[index].subtasks.length) {
-                    // Subtask drag-and-drop
-                    if (zone.classList.contains('subtask-list') && parentIndex === index) {
-                        // Reorder within same parent task
-                        const afterSubtaskElement = getSubtaskAfterElement(zone, e.clientY, index);
-                        const parentTask = schedule[index];
-                        const [movedSubtask] = parentTask.subtasks.splice(subtaskIndex, 1);
-                        const newSubtaskIndex = afterSubtaskElement
-                            ? parentTask.subtasks.findIndex(st => st.task === afterSubtaskElement.dataset.task)
-                            : parentTask.subtasks.length;
-                        parentTask.subtasks.splice(newSubtaskIndex === -1 ? parentTask.subtasks.length : newSubtaskIndex, 0, movedSubtask);
-                    } else if (newSection) {
-                        // Move parent task to new section
-                        const afterElement = getDragAfterElement(zone, e.clientY);
-                        const [movedTask] = schedule.splice(index, 1);
-                        let insertIndex;
-                        if (afterElement) {
-                            insertIndex = schedule.findIndex(t => t.start === afterElement.dataset.start && t.end === afterElement.dataset.end && t.task === afterElement.dataset.task);
-                            if (insertIndex === -1) insertIndex = schedule.length;
-                        } else {
-                            insertIndex = schedule.length;
-                        }
-                        if (newSection === 'completed') {
-                            movedTask.completed = true;
-                            movedTask.completedAt = Date.now();
-                        } else {
-                            movedTask.completed = false;
-                            delete movedTask.completedAt;
-                            movedTask.section = newSection;
-                        }
-                        schedule.splice(insertIndex, 0, movedTask);
-                    }
-                    localStorage.setItem('schedule', JSON.stringify(schedule));
-                    renderTasks();
-                } else if (index >= 0 && index < schedule.length && !subtaskIndex && !zone.classList.contains('subtask-list')) {
-                    // Task drag-and-drop
-                    const task = schedule[index];
-                    const afterElement = getDragAfterElement(zone, e.clientY);
-                    const [movedTask] = schedule.splice(index, 1);
-                    let insertIndex;
-                    if (afterElement) {
-                        insertIndex = schedule.findIndex(t => t.start === afterElement.dataset.start && t.end === afterElement.dataset.end && t.task === afterElement.dataset.task);
-                        if (insertIndex === -1) insertIndex = schedule.length;
-                    } else {
-                        insertIndex = schedule.length;
-                    }
-                    if (newSection === 'completed') {
-                        movedTask.completed = true;
-                        movedTask.completedAt = Date.now();
-                    } else {
-                        movedTask.completed = false;
-                        delete movedTask.completedAt;
-                        movedTask.section = newSection;
-                    }
-                    schedule.splice(insertIndex, 0, movedTask);
-                    localStorage.setItem('schedule', JSON.stringify(schedule));
-                    renderTasks();
-                }
-            });
-        });
-
-        // Helper function to determine the closest task for reordering
-        function getDragAfterElement(container, y) {
-            const draggableElements = [...container.querySelectorAll('li.task:not(.dragging)')];
-            return draggableElements.reduce((closest, child) => {
-                const box = child.getBoundingClientRect();
-                const offset = y - box.top - box.height / 2;
-                if (offset < 0 && offset > closest.offset) {
-                    return { offset: offset, element: child };
-                }
-                return closest;
-            }, { offset: Number.NEGATIVE_INFINITY }).element;
-        }
-
-        // Helper function to determine the closest subtask for reordering
-        function getSubtaskAfterElement(container, y, parentIndex) {
-            const draggableElements = [...container.querySelectorAll(`li.subtask:not(.dragging)[data-parent-index="${parentIndex}"]`)];
-            return draggableElements.reduce((closest, child) => {
-                const box = child.getBoundingClientRect();
-                const offset = y - box.top - box.height / 2;
-                if (offset < 0 && offset > closest.offset) {
-                    return { offset: offset, element: child };
-                }
-                return closest;
-            }, { offset: Number.NEGATIVE_INFINITY }).element;
-        }
-
-        // Clear completed tasks
-        clearCompleted.addEventListener('click', () => {
-            if (confirm('Are you sure you want to clear all completed tasks?')) {
-                schedule = schedule.filter(task => !task.completed);
-                localStorage.setItem('schedule', JSON.stringify(schedule));
-                renderTasks();
-            }
-        });
-
-        // Add task
-        addTaskForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const start = document.getElementById('start-time').value;
-            const end = document.getElementById('end-time').value;
-            const taskName = document.getElementById('task-name').value;
-            const section = document.getElementById('section').value;
-
-            if (start >= end) {
-                alert('End time must be after start time.');
-                return;
-            }
-
-            schedule.push({ start, end, task: taskName, section, completed: false, subtasks: [] });
-            localStorage.setItem('schedule', JSON.stringify(schedule));
-            renderTasks();
-            addTaskForm.reset();
-        });
-
-        // Update current task and timer
-        function updateTimer() {
-            const now = new Date();
-            const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-            let currentTask = null;
-
-            schedule.forEach(task => {
-                if (!task.completed && currentTime >= task.start && currentTime < task.end) {
-                    currentTask = task;
-                    task.element = document.querySelector(`li.task[data-start="${task.start}"][data-end="${task.end}"][data-task="${task.task}"]`);
-                }
-            });
-
-            document.querySelectorAll('li.task').forEach(li => li.classList.remove('active'));
-
-            if (currentTask) {
-                currentTaskEl.textContent = `Current Task: ${currentTask.task}`;
-                const endTime = new Date();
-                const [endHours, endMinutes] = currentTask.end.split(':').map(Number);
-                endTime.setHours(endHours, endMinutes, 0, 0);
-                const timeLeft = endTime - now;
-                if (timeLeft > 0) {
-                    const minutes = Math.floor(timeLeft / 60000);
-                    const seconds = Math.floor((timeLeft % 60000) / 1000);
-                    timerEl.textContent = `Time Left: ${minutes}m ${seconds}s`;
-                    if (notificationsEnabled && minutes === 0 && seconds <= 10 && seconds > 0) {
-                        if (Notification.permission === 'granted') {
-                            new Notification(`Task "${currentTask.task}" ending soon!`);
-                        }
-                        alertSound.play().catch(() => console.log('Audio playback failed'));
-                    }
-                } else {
-                    currentTaskEl.textContent = 'Current Task: None';
-                    timerEl.textContent = 'Time Left: --';
-                    if (notificationsEnabled && Notification.permission === 'granted') {
-                        new Notification(`Task "${currentTask.task}" has ended!`);
-                    }
-                    if (notificationsEnabled) {
-                        alertSound.play().catch(() => console.log('Audio playback failed'));
-                    }
-                }
-                if (currentTask.element) {
-                    currentTask.element.classList.add('active');
-                }
-            } else {
-                currentTaskEl.textContent = 'Current Task: None';
-                timerEl.textContent = 'Time Left: --';
-            }
-        }
-
-        // Initial render and timer update
-        renderTasks();
-        updateTimer();
-        setInterval(updateTimer, 1000);
-    </script>
+  </header>
+
+  <section class="hero">
+    <div class="focus-card">
+      <div class="eyebrow">Right now</div>
+      <h2 id="current-task">Ready when you are.</h2>
+      <div id="timer">--:--</div>
+      <div class="timer-caption" id="timer-caption">Your next task will appear here.</div>
+    </div>
+    <div class="stats-card">
+      <div class="stat-head"><span>Daily progress</span><strong id="progress-count">0 / 0 done</strong></div>
+      <div class="progress-track"><div id="progress-fill"></div></div>
+      <div class="stats-foot"><span id="progress-percent">0% complete</span><span id="remaining-count">Nothing pending</span></div>
+    </div>
+  </section>
+
+  <div class="layout">
+    <section>
+      <div class="schedule">
+        <section class="panel">
+          <div class="panel-head"><h3>🕌 Prayer time</h3><small id="prayer-count">0 tasks</small></div>
+          <ul class="task-list" id="prayer-tasks"></ul>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h3>☀️ Morning</h3><small id="morning-count">0 tasks</small></div>
+          <ul class="task-list" id="morning-tasks"></ul>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h3>🌤️ Noon</h3><small id="noon-count">0 tasks</small></div>
+          <ul class="task-list" id="noon-tasks"></ul>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h3>🌙 Evening</h3><small id="evening-count">0 tasks</small></div>
+          <ul class="task-list" id="evening-tasks"></ul>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h3>⚡ Important &amp; urgent</h3><small id="important_urgent-count">0 tasks</small></div>
+          <ul class="task-list" id="important-urgent-tasks"></ul>
+        </section>
+      </div>
+      <section class="panel completed-panel">
+        <div class="panel-head"><h3>✓ Completed</h3><button class="small-btn" id="clear-completed" type="button">Clear all</button></div>
+        <ul class="task-list" id="completed-tasks"></ul>
+      </section>
+    </section>
+
+    <aside class="panel add-panel">
+      <h3 id="form-heading">Add a task</h3>
+      <p>Give your time a clear purpose.</p>
+      <form id="add-task-form">
+        <div class="field"><label for="task-name">TASK NAME</label><input id="task-name" type="text" placeholder="What needs your focus?" required maxlength="120"></div>
+        <div class="time-fields">
+          <div class="field"><label for="start-time">START</label><input id="start-time" type="time" required value="09:00"></div>
+          <div class="field"><label for="end-time">END</label><input id="end-time" type="time" required value="10:00"></div>
+        </div>
+        <div class="field"><label for="section">ADD TO</label>
+          <select id="section">
+            <option value="morning">Morning</option><option value="noon">Noon</option>
+            <option value="evening">Evening</option><option value="prayer">Prayer time</option><option value="important_urgent">Important &amp; urgent</option>
+          </select>
+        </div>
+        <button class="primary-btn" id="submit-task" type="submit">＋ Add task</button>
+        <button class="secondary-btn" id="cancel-edit" type="button" style="display:none;width:100%;margin-top:8px">Cancel edit</button>
+        <div class="form-message" id="form-message" aria-live="polite"></div>
+      </form>
+      <div class="tools">
+        <button class="secondary-btn" id="reset-schedule" type="button">Reset schedule</button>
+      </div>
+      <p class="notice">Your schedule is saved automatically in this browser.</p>
+    </aside>
+  </div>
+</main>
+<script>
+const defaultSchedule = [
+  {start:"06:00",end:"07:00",task:"Theory: English",section:"morning",completed:false,subtasks:[]},
+  {start:"07:00",end:"08:00",task:"Analysis: Questions Bank",section:"morning",completed:false,subtasks:[]},
+  {start:"08:00",end:"09:00",task:"Practice: Model Test",section:"morning",completed:false,subtasks:[]},
+  {start:"09:00",end:"10:00",task:"Revision",section:"morning",completed:false,subtasks:[]},
+  {start:"11:00",end:"12:00",task:"Find Clients: Existing clients, marketplaces & LinkedIn",section:"noon",completed:false,subtasks:[]},
+  {start:"12:00",end:"13:00",task:"ShofolJOB Website",section:"noon",completed:false,subtasks:[]},
+  {start:"13:00",end:"14:00",task:"ShofolJOB Website",section:"noon",completed:false,subtasks:[]},
+  {start:"18:00",end:"19:00",task:"NTRCA: Written",section:"evening",completed:false,subtasks:[]},
+  {start:"19:00",end:"20:00",task:"NTRCA: Written",section:"evening",completed:false,subtasks:[]},
+  {start:"05:00",end:"06:00",task:"Fajr: Theory",section:"prayer",completed:false,subtasks:[]},
+  {start:"14:00",end:"15:00",task:"Dhuhr: Analysis (Questions Bank)",section:"prayer",completed:false,subtasks:[]},
+  {start:"15:30",end:"16:30",task:"Asr: Practice (Model Test)",section:"prayer",completed:false,subtasks:[]},
+  {start:"17:00",end:"18:00",task:"Maghrib: Revision",section:"prayer",completed:false,subtasks:[]},
+  {start:"20:00",end:"21:00",task:"Isha: Note making",section:"prayer",completed:false,subtasks:[]}
+];
+const STORE="focusScheduleV2";
+let schedule;
+try { schedule=JSON.parse(localStorage.getItem(STORE)) || JSON.parse(localStorage.getItem("schedule")) || defaultSchedule.map(t=>({...t})); }
+catch { schedule=defaultSchedule.map(t=>({...t})); }
+schedule=schedule.filter(t=>["morning","noon","evening","prayer","important_urgent"].includes(t.section));
+try{
+  if(!localStorage.getItem("focusPrayerSeeded")){
+    if(!schedule.some(t=>t.section==="prayer")) defaultSchedule.filter(t=>t.section==="prayer").forEach(t=>schedule.push({...t,subtasks:[]}));
+    localStorage.setItem("focusPrayerSeeded","1");
+    localStorage.setItem("focusScheduleV2",JSON.stringify(schedule));
+  }
+}catch{}
+schedule.forEach(t=>{t.subtasks ||= [];});
+const $=id=>document.getElementById(id);
+const sections={
+  morning:$("morning-tasks"),noon:$("noon-tasks"),evening:$("evening-tasks"),prayer:$("prayer-tasks"),
+  important_urgent:$("important-urgent-tasks")
+};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const save=()=>localStorage.setItem(STORE,JSON.stringify(schedule));
+const timeLabel=t=>{const [h,m]=t.split(":").map(Number);return `${h%12||12}:${String(m).padStart(2,"0")} ${h>=12?"PM":"AM"}`;};
+function render(){
+  Object.values(sections).forEach(el=>el.innerHTML="");
+  const active=schedule.filter(t=>!t.completed).sort((a,b)=>toMinutes(a.start)-toMinutes(b.start)||toMinutes(a.end)-toMinutes(b.end)),done=schedule.filter(t=>t.completed).sort((a,b)=>(b.completedAt||0)-(a.completedAt||0));
+  active.forEach((task)=>sections[task.section]?.appendChild(taskNode(task,false)));
+  $("completed-tasks").innerHTML="";
+  done.forEach(task=>$("completed-tasks").appendChild(taskNode(task,true)));
+  Object.keys(sections).forEach(key=>{
+    const count=active.filter(t=>t.section===key).length;
+    $(`${key}-count`).textContent=`${count} ${count===1?"task":"tasks"}`;
+    if(!count) sections[key].innerHTML='<li class="empty">No tasks planned here yet.</li>';
+  });
+  if(!done.length) $("completed-tasks").innerHTML='<li class="empty">Completed tasks will show up here.</li>';
+  $("clear-completed").style.visibility=done.length?"visible":"hidden";
+  const total=schedule.length,completed=done.length,pct=total?Math.round(completed/total*100):0;
+  $("progress-count").textContent=`${completed} / ${total} done`;
+  $("progress-fill").style.width=pct+"%";
+  $("progress-percent").textContent=pct+"% complete";
+  $("remaining-count").textContent=total-completed?`${total-completed} remaining`:"All caught up";
+  updateTimer();
+}
+function taskNode(task,isDone){
+  const li=document.createElement("li");li.className="task"+(isDone?" completed":"");
+  const index=schedule.indexOf(task);
+  const subtasks=task.subtasks||[];
+  li.dataset.idx=index;
+  const clash=isDone?[]:findOverlaps(task.start,task.end,task);
+  li.innerHTML=`<button class="check" aria-label="${isDone?"Reopen":"Complete"} task">${isDone?"✓":""}</button>
+    <div class="task-main"><div class="task-title">${esc(task.task)}</div>
+    <div class="task-meta">${timeLabel(task.start)} – ${timeLabel(task.end)}${subtasks.length?` · ${subtasks.filter(s=>s.completed).length}/${subtasks.length} subtasks`:""}${clash.length?` · <span class="task-warn">⚠ Overlaps: ${esc(clash.map(t=>t.task).join(", "))}</span>`:""}</div></div>
+    <div class="task-actions"><button class="small-btn subtask-toggle" title="Subtasks">＋</button><button class="small-btn edit" title="Edit">Edit</button><button class="small-btn delete" title="Delete">×</button></div>`;
+  const sub=document.createElement("ul");sub.className="subtasks";sub.innerHTML=subtasks.map((s,i)=>`<li class="subtask ${s.completed?"done":""}"><button data-sub="${i}" aria-label="Toggle subtask">${s.completed?"✓":"○"}</button><span>${esc(s.task)}</span><button data-remove="${i}" aria-label="Delete subtask">×</button></li>`).join("");
+  const add=document.createElement("form");add.className="subtask-add";add.innerHTML='<input name="subtask" placeholder="Add a small step…" aria-label="New subtask" required><button>Add</button>';
+  li.append(sub,add);
+  li.querySelector(".check").onclick=()=>{task.completed=!task.completed;task.completedAt=task.completed?Date.now():null;save();render();};
+  li.querySelector(".delete").onclick=()=>{if(confirm("Delete this task?")){schedule.splice(index,1);save();render();}};
+  li.querySelector(".edit").onclick=()=>startEdit(task);
+  li.querySelector(".subtask-toggle").onclick=()=>{sub.classList.toggle("open");add.style.display=sub.classList.contains("open")?"flex":"none";};
+  sub.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{const s=task.subtasks[+b.dataset.sub];s.completed=!s.completed;save();render();});
+  sub.querySelectorAll("[data-remove]").forEach(b=>b.onclick=()=>{task.subtasks.splice(+b.dataset.remove,1);save();render();});
+  add.onsubmit=e=>{e.preventDefault();const value=new FormData(add).get("subtask").trim();if(value){task.subtasks.push({task:value,completed:false});save();render();}};
+  add.style.display="none";
+  if(isDone){li.querySelector(".subtask-toggle").style.display="none";}
+  return li;
+}
+function findOverlaps(start,end,ignore){
+  const s=toMinutes(start),e=toMinutes(end);
+  return schedule.filter(t=>t!==ignore&&!t.completed&&s<toMinutes(t.end)&&e>toMinutes(t.start));
+}
+let editingTask=null;
+function startEdit(task){
+  editingTask=task;
+  $("task-name").value=task.task;$("start-time").value=task.start;$("end-time").value=task.end;$("section").value=task.section;
+  $("form-heading").textContent="Edit task";$("submit-task").textContent="Save changes";
+  $("cancel-edit").style.display="block";$("form-message").textContent="";
+  $("add-task-form").scrollIntoView({behavior:"smooth",block:"center"});$("task-name").focus();
+}
+function stopEdit(){
+  editingTask=null;$("add-task-form").reset();
+  $("form-heading").textContent="Add a task";$("submit-task").textContent="＋ Add task";$("cancel-edit").style.display="none";
+}
+$("cancel-edit").onclick=()=>{stopEdit();$("form-message").textContent="";};
+$("add-task-form").addEventListener("submit",e=>{
+  e.preventDefault();const start=$("start-time").value,end=$("end-time").value,name=$("task-name").value.trim(),section=$("section").value;
+  if(!name)return;
+  if(start>=end){$("form-message").textContent="End time must be later than start time.";return;}
+  if(!(editingTask&&editingTask.completed)){
+    const clash=findOverlaps(start,end,editingTask);
+    if(clash.length&&!confirm("This time overlaps with:\n"+clash.map(t=>`• ${t.task} (${timeLabel(t.start)} – ${timeLabel(t.end)})`).join("\n")+"\n\nSave anyway?"))return;
+  }
+  if(editingTask){
+    if(schedule.includes(editingTask)){Object.assign(editingTask,{task:name,start,end,section});save();render();stopEdit();$("form-message").textContent="Task updated.";}
+    else{stopEdit();}
+    return;
+  }
+  schedule.push({start,end,task:name,section,completed:false,subtasks:[]});save();render();
+  $("task-name").value="";$("form-message").textContent="Task added to your schedule.";
+});
+$("clear-completed").onclick=()=>{if(confirm("Remove all completed tasks?")){schedule=schedule.filter(t=>!t.completed);save();render();}};
+$("reset-schedule").onclick=()=>{if(confirm("Restore the original sample schedule? Your current tasks will be replaced.")){schedule=defaultSchedule.map(t=>({...t,subtasks:[]}));stopEdit();save();render();}};
+$("theme-btn").onclick=()=>{document.body.classList.toggle("dark");localStorage.setItem("focusDark",document.body.classList.contains("dark"));$("theme-btn").textContent=document.body.classList.contains("dark")?"☀":"☾";};
+if(localStorage.getItem("focusDark")==="true"){$("theme-btn").click();}
+let notified=new Set();
+const dayKey=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
+function newDayCheck(){
+  let last=null;try{last=localStorage.getItem("focusLastDay");}catch{}
+  const today=dayKey();
+  if(last===today)return false;
+  try{localStorage.setItem("focusLastDay",today);}catch{}
+  if(last===null)return false;
+  schedule.forEach(t=>{t.completed=false;t.completedAt=null;(t.subtasks||[]).forEach(s=>{s.completed=false;});});
+  notified.clear();save();return true;
+}
+function updateTimer(){
+  if(newDayCheck()){render();return;}
+  const now=new Date(),mins=now.getHours()*60+now.getMinutes()+now.getSeconds()/60;
+  const nowSecs=now.getHours()*3600+now.getMinutes()*60+now.getSeconds();
+  schedule.forEach(t=>{
+    if(t.completed)return;
+    const until=toMinutes(t.start)*60-nowSecs,key="pre|"+dayKey()+"|"+t.task+"|"+t.start;
+    if(until>0&&until<=300&&!notified.has(key)){
+      notified.add(key);
+      if("Notification"in window&&Notification.permission==="granted")new Notification("Starting in "+Math.ceil(until/60)+" min",{body:t.task+" · "+timeLabel(t.start)});
+    }
+  });
+  const current=schedule.find(t=>!t.completed&&mins>=toMinutes(t.start)&&mins<toMinutes(t.end));
+  if(!current){$("current-task").textContent="No task in progress";$("timer").textContent="--:--";$("timer-caption").textContent="Take a breath, or prepare for your next task.";document.querySelectorAll(".task").forEach(el=>el.classList.remove("active"));return;}
+  const seconds=Math.max(0,Math.floor(toMinutes(current.end)*60-(now.getHours()*3600+now.getMinutes()*60+now.getSeconds())));
+  $("current-task").textContent=current.task;
+  $("timer").textContent=`${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;
+  $("timer-caption").textContent="Time remaining in this focus block";
+  const ci=String(schedule.indexOf(current));document.querySelectorAll(".task").forEach(el=>el.classList.toggle("active",el.dataset.idx===ci));
+  const key=current.task+current.end;
+  if(seconds===0&&!notified.has(key)){notified.add(key);if(Notification.permission==="granted")new Notification("Focus block finished",{body:current.task});}
+}
+function toMinutes(t){const [h,m]=t.split(":").map(Number);return h*60+m;}
+$("notify-btn").onclick=async()=>{
+  if(!("Notification"in window)){alert("This browser does not support notifications.");return;}
+  if(Notification.permission==="granted"){alert("Browser notifications are already enabled.");return;}
+  const permission=await Notification.requestPermission();
+  $("notify-btn").textContent=permission==="granted"?"Alerts enabled":"Enable alerts";
+};
+if("Notification"in window&&Notification.permission==="granted")$("notify-btn").textContent="Alerts enabled";
+newDayCheck();
+render();setInterval(updateTimer,1000);
+</script>
 </body>
 </html>
