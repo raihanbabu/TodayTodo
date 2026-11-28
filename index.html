@@ -1,3 +1,95 @@
+<!--
+// Focus - run this file with Node to start the sync server:  node focus-work-schedule.html
+// (optional passcode:  PIN=1234 node focus-work-schedule.html)
+// Opened in a browser, this part is a hidden comment and the app simply runs.
+const http = require("http"), fs = require("fs"), path = require("path"), os = require("os");
+
+const PORT = Number(process.env.PORT) || 8787;
+const PIN = process.env.PIN || "";
+const DATA_FILE = process.env.DATA_FILE || path.join(path.dirname(__filename), "focus-data.json");
+const PAGE = __filename;   // this very file is the app page
+
+let state = { rev: 0, data: null };
+try {
+  const saved = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+  if (saved && typeof saved.rev === "number") state = saved;
+} catch {}
+
+function persist() {
+  const tmp = DATA_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(state));
+  fs.renameSync(tmp, DATA_FILE);
+}
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, PUT, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, X-Focus-Pin",
+  "Access-Control-Allow-Private-Network": "true",
+  "Access-Control-Max-Age": "600"
+};
+
+function send(res, code, body, type = "application/json") {
+  res.writeHead(code, { ...CORS, "Content-Type": type, "Cache-Control": "no-store" });
+  res.end(typeof body === "string" ? body : JSON.stringify(body));
+}
+
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, "http://localhost");
+
+  if (req.method === "OPTIONS") { res.writeHead(204, CORS); return res.end(); }
+
+  if (url.pathname === "/api/state") {
+    if (PIN && req.headers["x-focus-pin"] !== PIN) return send(res, 401, { error: "wrong passcode" });
+    if (req.method === "GET") return send(res, 200, state);
+    if (req.method === "PUT") {
+      const chunks = []; let size = 0, tooBig = false;
+      req.on("data", c => {
+        size += c.length;
+        if (size > 2e6) { tooBig = true; return; }
+        chunks.push(c);
+      });
+      req.on("end", () => {
+        if (tooBig) return send(res, 413, { error: "too large" });
+        try {
+          const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+          if (!body || !body.data || body.data.app !== "focus-schedule") throw new Error("bad");
+          state = { rev: state.rev + 1, data: body.data };
+          persist();
+          send(res, 200, { rev: state.rev });
+        } catch { send(res, 400, { error: "bad request" }); }
+      });
+      return;
+    }
+    return send(res, 405, { error: "method not allowed" });
+  }
+
+  if (req.method === "GET" && ["/", "/index.html", "/focus-work-schedule.html"].includes(url.pathname)) {
+    if (fs.existsSync(PAGE)) {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+      return fs.createReadStream(PAGE).pipe(res);
+    }
+    return send(res, 404, "Page not found.", "text/plain");
+  }
+
+  send(res, 404, { error: "not found" });
+});
+
+server.listen(PORT, "0.0.0.0", () => {
+  console.log("\nFocus sync server is running.\n");
+  console.log("Use one of these addresses on your phone and computer (same Wi-Fi):");
+  const nets = os.networkInterfaces();
+  let found = false;
+  for (const list of Object.values(nets))
+    for (const n of list || [])
+      if (n.family === "IPv4" && !n.internal) { console.log("  http://" + n.address + ":" + PORT); found = true; }
+  if (!found) console.log("  (no network found — connect to Wi-Fi first)");
+  console.log("  http://localhost:" + PORT + "   (this computer only)");
+  console.log(PIN ? "\nPasscode is ON." : "\nTip: set a passcode with  PIN=1234 node server.js");
+  console.log("Press Ctrl+C to stop.\n");
+});
+/*
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -144,6 +236,7 @@ body.dark .field input,body.dark .field select,body.dark .field textarea{backgro
     <div class="brand"><div class="brand-mark">F</div><div><h1>Focus</h1><p>Your day, with intention.</p></div></div>
     <div class="top-actions">
       <button class="secondary-btn" id="install-btn" type="button" style="display:none">Install app</button>
+      <button class="icon-btn" id="sync-btn" type="button" aria-label="Sync between devices" title="Sync between devices">🔄</button>
       <button class="icon-btn" id="summary-btn" type="button" aria-label="Weekly summary" title="Weekly summary">📊</button>
       <button class="icon-btn" id="sound-btn" type="button" aria-label="Alert sound" title="Alert sound">🔔</button>
       <button class="secondary-btn" id="notify-btn" type="button">Enable alerts</button>
@@ -231,7 +324,7 @@ body.dark .field input,body.dark .field select,body.dark .field textarea{backgro
         <button class="secondary-btn" id="export-btn" type="button">Export backup</button>
         <button class="secondary-btn" id="import-btn" type="button">Import backup</button>
       </div>
-      <p class="notice">Your schedule is saved automatically in this browser.<br><span id="backup-note"></span></p>
+      <p class="notice">Your schedule is saved automatically in this browser.<br><span id="backup-note"></span><br><span id="sync-note"></span></p>
     </aside>
   </div>
 </main>
@@ -240,6 +333,16 @@ body.dark .field input,body.dark .field select,body.dark .field textarea{backgro
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="summary-title">
     <div class="panel-head"><h3 id="summary-title">Weekly summary</h3><button class="small-btn" id="summary-close" type="button" aria-label="Close">✕</button></div>
     <div id="summary-body"></div>
+  </div>
+</div>
+<div class="modal" id="sync-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="sync-title">
+    <div class="panel-head"><h3 id="sync-title">Sync between devices</h3><button class="small-btn" id="sync-close" type="button" aria-label="Close">✕</button></div>
+    <p class="notice" style="text-align:left;margin:0 0 14px">Keep your phone and computer in step on the same Wi-Fi. On the computer, open a terminal in this file's folder and run <b>node focus-work-schedule.html</b>, then enter the address it prints on every device.</p>
+    <div class="field"><label for="sync-url">SERVER ADDRESS</label><input id="sync-url" type="url" placeholder="http://192.168.0.10:8787" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    <div class="field"><label for="sync-pin">PASSCODE (OPTIONAL)</label><input id="sync-pin" type="password" autocomplete="off" placeholder="Only if you set one on the server"></div>
+    <div class="sched-row"><button class="primary-btn" id="sync-toggle" type="button" style="width:auto;flex:1">Turn on sync</button><button class="secondary-btn" id="sync-now" type="button">Sync now</button></div>
+    <div class="form-message" id="sync-status" style="color:var(--muted)" aria-live="polite"></div>
   </div>
 </div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
@@ -322,7 +425,7 @@ const sections={
 };
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function syncActive(){activeProfile().tasks=schedule;}
-const save=()=>{syncActive();try{localStorage.setItem(PROFILES_KEY,JSON.stringify(profiles));}catch{}};
+const save=silent=>{syncActive();try{localStorage.setItem(PROFILES_KEY,JSON.stringify(profiles));}catch{}if(!silent)markDirty();};
 const timeLabel=t=>{const [h,m]=t.split(":").map(Number);return `${h%12||12}:${String(m).padStart(2,"0")} ${h>=12?"PM":"AM"}`;};
 function render(){
   Object.values(sections).forEach(el=>el.innerHTML="");
@@ -421,7 +524,7 @@ function newDayCheck(){
   syncActive();
   profiles.list.forEach(p=>p.tasks.forEach(t=>{t.completed=false;t.completedAt=null;(t.subtasks||[]).forEach(x=>{x.completed=false;});}));
   autoSwitchForToday();
-  notified.clear();save();renderProfiles();return true;
+  notified.clear();save(true);renderProfiles();return true;
 }
 function alertUser(key,title,body,pattern){
   if(notified.has(key))return;
@@ -456,7 +559,7 @@ $("notify-btn").onclick=async()=>{
 };
 if("Notification"in window&&Notification.permission==="granted")$("notify-btn").textContent="Alerts enabled";
 
-/* ---------- dates & history (weekly summary) ---------- */
+// ---------- dates & history (weekly summary) ----------
 const keyOf=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const dayKey=()=>keyOf(new Date());
 function saveHistory(){
@@ -512,9 +615,9 @@ function renderSummary(){
 $("summary-btn").onclick=()=>{renderSummary();$("summary-modal").hidden=false;};
 $("summary-close").onclick=()=>{$("summary-modal").hidden=true;};
 $("summary-modal").addEventListener("click",e=>{if(e.target===$("summary-modal"))$("summary-modal").hidden=true;});
-document.addEventListener("keydown",e=>{if(e.key==="Escape")$("summary-modal").hidden=true;});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){$("summary-modal").hidden=true;$("sync-modal").hidden=true;}});
 
-/* ---------- multiple schedules ---------- */
+// ---------- multiple schedules ----------
 const DAY_NAMES=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 function renderProfiles(){
   const sel=$("profile-select");
@@ -532,7 +635,7 @@ function renderProfiles(){
 }
 function switchProfile(id){
   const p=profiles.list.find(x=>x.id===id);if(!p)return;
-  syncActive();profiles.active=id;schedule=p.tasks;stopEdit();save();render();renderProfiles();
+  syncActive();profiles.active=id;schedule=p.tasks;stopEdit();save(true);render();renderProfiles();
 }
 function autoSwitchForToday(){
   const p=profiles.list.find(x=>x.days.includes(new Date().getDay()));
@@ -546,7 +649,7 @@ $("profile-new").onclick=()=>{
   const id="p"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
   const tasks=copy?schedule.map(t=>({...t,completed:false,completedAt:null,subtasks:(t.subtasks||[]).map(x=>({...x,completed:false}))})):[];
   syncActive();profiles.list.push({id,name:name.trim().slice(0,40),days:[],tasks});
-  switchProfile(id);
+  switchProfile(id);markDirty();
 };
 $("profile-rename").onclick=()=>{
   const p=activeProfile(),name=prompt("Rename this schedule",p.name);
@@ -561,7 +664,7 @@ $("profile-delete").onclick=()=>{
   profiles.active=profiles.list[0].id;schedule=profiles.list[0].tasks;stopEdit();save();render();renderProfiles();
 };
 
-/* ---------- backup: export / import ---------- */
+// ---------- backup: export / import ----------
 function updateBackupNote(){
   let last=null;try{last=localStorage.getItem("focusLastBackup");}catch{}
   $("backup-note").textContent=last?"Last backup: "+new Date(+last).toLocaleDateString("en-GB",{day:"numeric",month:"short"}):"No backup yet — tap Export backup.";
@@ -617,7 +720,7 @@ $("import-file").onchange=async e=>{
   catch(err){alert("Couldn't import this file: "+(err&&err.message?err.message:"invalid file"));}
 };
 
-/* ---------- sound, toasts, system notifications ---------- */
+// ---------- sound, toasts, system notifications ----------
 let audioCtx=null;
 function unlockAudio(){
   if(!soundOn)return;
@@ -664,7 +767,7 @@ async function systemNotify(title,body,tag){
   try{new Notification(title,opts);}catch{}
 }
 
-/* ---------- install as an app ---------- */
+// ---------- install as an app ----------
 const ICON192="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAAEU0lEQVR4nO3dvW7kVABH8b8/JkNCEqKIh6DdmoaKB6Cj2Xeg4gWgRoiKZikRQqKiokOipaGiBCS+BKJYQSAZ25fCLBVC2TlrWXfm/JQ6cyc+sWzPvXeaBw93kfbVrj0A1c2AhBiQEAMSYkBCDEiIAQkxICEGJMSAhBiQEAMSYkBCDEiIAQkxICEGJMSAhBiQEAMSYkBCDEiIAQkxICEGJMSAhBiQEAMSYkBCDEiIAQkxICEGJMSAhBiQEAMSYkBCDEiIAQkxICEGJMSAhBiQEAMSYkBCDEiIAQkxICH92gNA2gPqv5SUsvYgnl7FAZWS32+q/KP/p80m2019b6fWgEpJ3+fll5q+/pNQSZrk+1/z3U9l01fWUJUBNU2GMS9s8/6bXd+tPZpn5NGn01uPyotXGca1h/I0qgxoVpI//srFaUpJ06w9GmCY0re521X5LioOKEnbpG2rD6gtadta30L9VxBalQEJMSAhBiTEgIQYkBADEmJAQgxIiAEJMSAhBiTEgIQYkBADEmJAQuqeUPZMlJKpZMXpXNOUqalsKvS/DChNk27V2YAnbZIql2TkyAOa58L+8Ev59udsuqx1+MYxXZdvfqxvSUaOPKBxSt/lk8/L2x9Mqy+H6Lucn2Wc1hzDHo46oNnJJudnef65DGsdvJI0rkytVimZpkwl04r//RWmM/M2XogBCTEgIQYkxICEGJAQAxJiQEJ8kJgkTfPPz3JqfMp8HwaUqWQ3ZBiyW+azsCYpSVftDkD/z4ByepLry1xdLPth6s1thuEAGzrqgOb9FV9/tX3tlXa5QztNadu88c74xVfl/GzVT9wWcNQBzbabbDeLv0pf4Vyf+zCgZOEr3PkMdJD1xIBmi16aLH1/ty6fAwkxICEGJMSAhBiQEAMSYkBCDEiIAQkxICEGJMSAhBiQEAMS4nSOZOH5QJXu23JPBpQsPB+o6xZ/iRUZUG53ub1b8ADPMxIPckZ9jjygYUzf5cPPpnc/mq4vF1+Vcbo9tBn1OfKAZn/e5bfHaRvXhe3DgNI22fTp+yy6V/ShXkcbUPLkRulQj/GifA4kxICEGJAQAxJiQEIMSIgBCTEgIQYkxICEGJAQAxJiQEIMSIgBCTEgIQYkxICEGJAQAxJiQEIMSIgBCTEgIQYkpO6VqeOYYUwpey47H8ckmVyQClQcUNPk6gL9hvkrL8+2LmreX60BtW1u7/Lex9PJJil77osw79zz5dfldOt5aE/Ng4e7tcewp1Ly+CbBB357klNPQvuq9QyUpGlyfYm2ZJnPXNPk6Wd/FQeUJ1fBWpG38UIMSIgBCTEgIQYkxICEGJAQAxJiQEIMSIgBCTEgIQYkxICEGJAQAxJiQEIMSIgBCTEgIQYkxICEGJAQAxJiQEIMSIgBCTEgIQYkxICEGJAQAxJiQEIMSIgBCTEgIQYkxICEGJAQAxJiQEIMSIgBCTEgIQYkxICEGJAQAxLyN2Cz169N/tnrAAAAAElFTkSuQmCC",ICON512="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAIAAAB7GkOtAAAJhklEQVR4nO3bMY5kVxWA4fNqSnS7p20jdsKGSCH1GhABib0Miz04hMjROLMm8x6wZLn6XYJCIFkI4R4Pb6r/71MFFR6V6t3/3Xertt/+7scBoOd09AAAHEMAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKLORw/AMbbt6An4sK119AS8fwIQdbnMmtlmXOb8xPVb8erkLuHlE4CibZtPPx5XN//F9z/M5aIBL5wAtGzb/HiZXz/OX/54fnyYtVzh/NS+z+k0n33x9Ndv1uPD7PvRA/HeCEDRdQfwcHf0HHzAzmfHAC+fAERdLrN+ZQfAf3DdAVj9CwQgatv+ufQLAD/xr+8GL57/AQBECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQNT56AHg51lr1prZZtbRo7xQ+5rZjx6C/wsB4MZs22zb9d3Bk7xU18cCJ08HAgSAm7HWbNt8/uX+5u366H6Wu9T347q/+va7dX83yzbrRRMAbsY1AG/erq++Xp+8nl0A3qf7uzmfBOCFEwBuzMPdfPp6HgXgPVu7Q5aXTwC4Mfuap332XQDgXTnoAYgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAICo89EDwM+zbf9+sdbRE3DLBIAbc3maHy9zuczTfvQoh9pm1syrkxDyfALAjfn4YX7zyTw+zN4OwNX3P8zlogE8kwBwM06nmZk//eHV5cmSN/s+p9N89sXTX79ZcsjzCAA35uH+6Ak+JOezYwCeTwC4Mda7q+sOwKfBuxAAboyHP1d+B8W78z8AgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgKjz0QPAz7PWrDWzzayjRznUvmb2o4fgxgkAN2bbZtuu7w6e5FjXzfvJHp53IADcjLVm2+bzL/c3b9dH97Pa97/XXdC33637u1ntzRDPJgDcjGsA3rxdX329Pnk9ezsAV/d3cz4JAM8kANyYh7v59PU8CsDMzKw9fhTCOxEAbsy+5mmffRcAeFeOkACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACDqfPQAHGNfs++z1mzb0aP8z/Y1sx89BLwgAlC0zby+n9Otbf+u897c2PDBEoCWtebVaf7+w/z+z0/nW1tJ18w28+136/5u1jp6Grh9ApCzbXO5zN/erBtdQ+/v5nwSAPgFCEDRts3jw9FDPNfax+IPvwgBiNqdpkLerT0GBuAXIgAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUf8AIS7PtTnDIzwAAAAASUVORK5CYII=";
 if(/^https?:$/.test(location.protocol)){
   try{
@@ -684,9 +787,110 @@ $("install-btn").onclick=async()=>{
   deferredInstall=null;$("install-btn").style.display="none";
 };
 
+// ---------- sync between devices (same Wi-Fi, via the built-in server) ----------
+const SYNC_KEY="focusSyncV1";
+let sync={on:false,url:"",pin:"",lastRev:null,dirty:false};
+try{Object.assign(sync,JSON.parse(localStorage.getItem(SYNC_KEY))||{});}catch{}
+const saveSync=()=>{try{localStorage.setItem(SYNC_KEY,JSON.stringify(sync));}catch{}};
+let syncBusy=false,syncTimer=null,syncStatus="";
+function markDirty(){
+  if(!sync.on)return;
+  sync.dirty=true;saveSync();
+  clearTimeout(syncTimer);syncTimer=setTimeout(syncTick,500);
+}
+function setSyncStatus(t){
+  syncStatus=t;
+  $("sync-note").textContent=t?"Sync: "+t:"";
+  $("sync-status").textContent=t||"Sync is off.";
+}
+function syncFetch(method,body){
+  const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),6000);
+  return fetch(sync.url.replace(/\/+$/,"")+"/api/state",{
+    method,signal:ctl.signal,
+    headers:Object.assign({"Content-Type":"application/json"},sync.pin?{"X-Focus-Pin":sync.pin}:{}),
+    body:body?JSON.stringify(body):undefined
+  }).then(res=>{
+    if(res.status===401)throw new Error("wrong passcode");
+    if(!res.ok)throw new Error("server error "+res.status);
+    return res.json();
+  }).finally(()=>clearTimeout(to));
+}
+function buildDoc(){
+  syncActive();
+  return {app:"focus-schedule",version:3,day:dayKey(),profiles:{active:profiles.active,list:profiles.list},history};
+}
+function applyRemote(doc){
+  if(editingTask)return false;
+  const parsed=parseBackup(JSON.stringify(doc));
+  if(parsed.kind!=="full")return false;
+  const list=parsed.profiles.list;
+  // ticks only count for the day they were made
+  if(doc.day&&doc.day<dayKey())list.forEach(p=>p.tasks.forEach(t=>{t.completed=false;t.completedAt=null;t.subtasks.forEach(x=>{x.completed=false;});}));
+  Object.entries(parsed.history).forEach(([k,v])=>{const l=history[k];if(!l||(v.done||0)>(l.done||0))history[k]=v;});
+  const active=list.some(p=>p.id===profiles.active)?profiles.active:list[0].id;   // each device keeps its own open schedule
+  profiles={active,list};schedule=activeProfile().tasks;
+  saveHistory();save(true);render();renderProfiles();
+  return true;
+}
+async function syncTick(){
+  if(!sync.on||!sync.url||syncBusy)return;
+  syncBusy=true;
+  try{
+    const r=await syncFetch("GET");
+    if(sync.dirty||!r.data){
+      const out=await syncFetch("PUT",{baseRev:r.rev,data:buildDoc()});
+      sync.lastRev=out.rev;sync.dirty=false;saveSync();
+    }else if(r.rev!==sync.lastRev){
+      if(applyRemote(r.data)){sync.lastRev=r.rev;saveSync();}
+    }
+    setSyncStatus("connected · "+new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}));
+  }catch(err){
+    setSyncStatus(err&&err.message==="wrong passcode"?"wrong passcode":"can't reach the server — will retry");
+  }finally{syncBusy=false;}
+}
+function updateSyncUi(){
+  $("sync-toggle").textContent=sync.on?"Turn off sync":"Turn on sync";
+  $("sync-url").value=sync.url||(/^https?:$/.test(location.protocol)?location.origin:"");
+  $("sync-pin").value=sync.pin||"";
+  $("sync-btn").title=sync.on?"Sync is on":"Sync between devices";
+  setSyncStatus(sync.on?(syncStatus||"connecting…"):"");
+}
+async function enableSync(){
+  const url=$("sync-url").value.trim().replace(/\/+$/,"");
+  if(!/^https?:\/\/.+/i.test(url)){$("sync-status").textContent="Enter the address shown by server.js, like http://192.168.0.10:8787";return;}
+  sync.url=url;sync.pin=$("sync-pin").value;
+  $("sync-status").textContent="Connecting…";
+  try{
+    const r=await syncFetch("GET");
+    stopEdit();
+    if(r.data){
+      if(confirm("The server already has a schedule.\n\nOK = use the server's schedule on this device\nCancel = replace the server's schedule with this device's")){
+        applyRemote(r.data);sync.lastRev=r.rev;sync.dirty=false;
+      }else{sync.dirty=true;}
+    }else{sync.dirty=true;}
+    sync.on=true;saveSync();updateSyncUi();syncTick();
+  }catch(err){
+    sync.on=false;saveSync();
+    $("sync-status").textContent=err&&err.message==="wrong passcode"?"Wrong passcode.":"Couldn't reach the server. Check the address, the Wi-Fi, and that server.js is running.";
+  }
+}
+$("sync-btn").onclick=()=>{updateSyncUi();$("sync-modal").hidden=false;};
+$("sync-close").onclick=()=>{$("sync-modal").hidden=true;};
+$("sync-modal").addEventListener("click",e=>{if(e.target===$("sync-modal"))$("sync-modal").hidden=true;});
+$("sync-toggle").onclick=()=>{
+  if(sync.on){sync.on=false;sync.dirty=false;saveSync();updateSyncUi();}
+  else enableSync();
+};
+$("sync-now").onclick=()=>{if(!sync.on){$("sync-status").textContent="Turn on sync first.";return;}syncTick();};
+setInterval(syncTick,3000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)syncTick();});
+window.addEventListener("online",syncTick);
+
 newDayCheck();
-renderProfiles();renderSound();updateBackupNote();
+renderProfiles();renderSound();updateBackupNote();updateSyncUi();syncTick();
 render();setInterval(updateTimer,1000);
 </script>
 </body>
 </html>
+<!--
+*/ -->
